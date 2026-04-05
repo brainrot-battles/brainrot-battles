@@ -1087,3 +1087,162 @@ body::after {
     gap: 0.5rem;
   }
 }
+
+/* ── Passive Display on Cards ──────────────────────────────── */
+
+.char-card-passive {
+  font-size: 0.55rem;
+  color: var(--accent-glow);
+  margin-top: 0.15rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Passive & Item Indicators in Battle ───────────────────── */
+
+.fighter-indicators {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.2rem;
+  flex-wrap: wrap;
+}
+
+.passive-indicator {
+  font-size: 0.5rem;
+  font-family: var(--font-pixel);
+  color: var(--accent-glow);
+  background: var(--accent)22;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.item-indicator {
+  font-size: 0.5rem;
+  font-family: var(--font-pixel);
+  color: var(--yellow);
+  background: #ffa50222;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  white-space: nowrap;
+  cursor: help;
+}
+
+/* ── Item Equip Row ────────────────────────────────────────── */
+
+.item-equip-row {
+  display: flex;
+  justify-content: center;
+  gap: 0.6rem;
+  margin-top: 0.4rem;
+}
+
+.item-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  cursor: pointer;
+  padding: 0.3rem 0.5rem;
+  border-radius: 8px;
+  border: 1px dashed var(--border);
+  background: var(--bg-card);
+  transition: border-color 0.2s, background 0.2s;
+  min-width: 80px;
+}
+
+.item-slot:hover {
+  border-color: var(--yellow);
+  background: var(--bg-card-hover);
+}
+
+.item-slot-icon {
+  font-size: 1.2rem;
+}
+
+/* ── Item Modal ────────────────────────────────────────────── */
+
+.item-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  animation: fadeIn 0.2s;
+}
+
+.item-modal {
+  background: var(--bg-dark);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem;
+  max-width: 420px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  text-align: center;
+}
+
+.item-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+.item-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.4rem 0.2rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  position: relative;
+}
+
+.item-card:hover:not(.locked):not(.taken) {
+  border-color: var(--yellow);
+  background: var(--bg-card-hover);
+}
+
+.item-card.selected {
+  border-color: var(--yellow);
+  box-shadow: 0 0 8px var(--yellow)44;
+}
+
+.item-card.locked,
+.item-card.taken {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.item-card-emoji {
+  font-size: 1.3rem;
+}
+
+.item-card-name {
+  font-size: 0.5rem;
+  font-family: var(--font-pixel);
+  color: var(--text-bright);
+  text-align: center;
+}
+
+.item-card-desc {
+  font-size: 0.55rem;
+  color: var(--text-dim);
+  text-align: center;
+  line-height: 1.2;
+}
+
+@keyframes passive-flash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; text-shadow: 0 0 8px var(--accent-glow); }
+}

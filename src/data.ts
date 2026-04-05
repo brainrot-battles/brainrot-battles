@@ -1,4 +1,4 @@
-import type { CharacterTemplate, ElementType, EvolutionStage } from './types';
+import type { CharacterTemplate, ElementType, EvolutionStage, Item, PlayerStats } from './types';
 
 // ── Type Effectiveness Chart ────────────────────────────────
 // 2.0 = super effective, 0.5 = not very effective, 1.0 = neutral
@@ -66,6 +66,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       img: import.meta.env.BASE_URL + 'img/tung-tung.png',
     },
     hp: 110, atk: 42, def: 30, spd: 35,
+    passive: { id: 'death-herald', name: 'Death Herald', emoji: '💀', description: 'Deals 10% more damage when an ally has fainted.' },
     moves: [
       { name: 'Sahur Strike', type: 'spirito', power: 25, description: 'A devastating bat swing from beyond.', cooldown: 0 },
       { name: 'Do Not Engage', type: 'spirito', power: 45, description: 'Classified attack. Maximum destruction.', cooldown: 4, effect: { type: 'confuse', duration: 2 }, effectChance: 0.5 },
@@ -89,6 +90,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       img: import.meta.env.BASE_URL + 'img/vaca-saturno.png',
     },
     hp: 120, atk: 40, def: 35, spd: 20,
+    passive: { id: 'soul-stare', name: 'Soul Stare', emoji: '👁️', description: 'Status effects last 1 extra turn.' },
     moves: [
       { name: 'Cosmic Stare', type: 'cosmico', power: 22, description: 'An infinite gaze from the void.', cooldown: 0 },
       { name: 'Black Hole Moo', type: 'cosmico', power: 50, description: 'A gravitational moo that devours everything.', cooldown: 4, effect: { type: 'freeze', duration: 1 }, effectChance: 0.4 },
@@ -114,6 +116,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       img: import.meta.env.BASE_URL + 'img/bombardiro.png',
     },
     hp: 100, atk: 38, def: 28, spd: 25,
+    passive: { id: 'collateral', name: 'Collateral Damage', emoji: '🔥', description: 'Super-effective attacks deal 15% more damage.' },
     moves: [
       { name: 'Bombardo Blast', type: 'militare', power: 25, description: 'Standard explosive payload.', cooldown: 0 },
       { name: 'Carpet Bombing', type: 'militare', power: 18, description: 'Indiscriminate area bombardment.', cooldown: 3, hitsAll: true },
@@ -137,6 +140,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       img: import.meta.env.BASE_URL + 'img/tralalero.png',
     },
     hp: 85, atk: 35, def: 22, spd: 45,
+    passive: { id: 'three-legs', name: 'Three-Legged Speed', emoji: '👟', description: 'Always has +15% speed.' },
     moves: [
       { name: 'Nike Kick', type: 'aquatico', power: 20, description: 'Triple-legged sneaker combo.', cooldown: 0 },
       { name: 'Reality Screech', type: 'spirito', power: 15, description: 'A screech that breaks the fourth wall.', cooldown: 2, effect: { type: 'confuse', duration: 2 }, effectChance: 0.5 },
@@ -160,6 +164,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       img: import.meta.env.BASE_URL + 'img/brr-patapim.png',
     },
     hp: 115, atk: 30, def: 38, spd: 18,
+    passive: { id: 'forest-shield', name: 'Forest Shield', emoji: '🛡️', description: 'Takes 10% less damage from all attacks.' },
     moves: [
       { name: 'Root Slam', type: 'natura', power: 22, description: 'Ancient roots erupt from below.', cooldown: 0 },
       { name: 'Forest Growth', type: 'natura', power: 0, description: 'The forest heals its guardian. Restores 25 HP.', cooldown: 3 },
@@ -183,6 +188,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       img: import.meta.env.BASE_URL + 'img/cappuccino-assassino.png',
     },
     hp: 80, atk: 42, def: 20, spd: 40,
+    passive: { id: 'first-strike', name: 'First Strike', emoji: '🗡️', description: 'First attack each battle deals 20% more damage.' },
     moves: [
       { name: 'Espresso Shuriken', type: 'cucina', power: 22, description: 'Boiling coffee stars fly.', cooldown: 0 },
       { name: 'Shadow Brew', type: 'cucina', power: 18, description: 'Disappears into the steam.', cooldown: 1, effect: { type: 'caffeinated', duration: 2 }, effectChance: 1.0 },
@@ -208,6 +214,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       img: import.meta.env.BASE_URL + 'img/ballerina.png',
     },
     hp: 75, atk: 28, def: 25, spd: 38,
+    passive: { id: 'dramatic-entrance', name: 'Dramatic Entrance', emoji: '🎭', description: '30% chance to confuse opponent on switch-in.' },
     moves: [
       { name: 'Pirouette Splash', type: 'cucina', power: 18, description: 'Hot coffee sprays in a graceful spin.', cooldown: 0 },
       { name: 'Infatuation Charm', type: 'cucina', power: 10, description: 'Mesmerizing dance.', cooldown: 2, effect: { type: 'confuse', duration: 3 }, effectChance: 0.6 },
@@ -231,6 +238,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       img: import.meta.env.BASE_URL + 'img/chimpanzini.png',
     },
     hp: 70, atk: 40, def: 18, spd: 42,
+    passive: { id: 'hidden-genius', name: 'Hidden Genius', emoji: '🧠', description: 'Cooldowns reduce 1 turn faster.' },
     moves: [
       { name: 'Banana Shiv', type: 'frutta', power: 20, description: 'Not just a fruit anymore.', cooldown: 0 },
       { name: 'Peel Trap', type: 'frutta', power: 12, description: 'Classic but effective.', cooldown: 1, effect: { type: 'confuse', duration: 2 }, effectChance: 0.5 },
@@ -254,6 +262,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       img: import.meta.env.BASE_URL + 'img/bobrito.png',
     },
     hp: 90, atk: 36, def: 24, spd: 30,
+    passive: { id: 'shakedown', name: 'Shakedown', emoji: '💰', description: 'Multi-hit moves deal 10% more damage.' },
     moves: [
       { name: 'Tommy Spray', type: 'militare', power: 15, description: 'Infinite ammo. No aim needed.', cooldown: 0, hits: 2 },
       { name: 'Smoke Bomb', type: 'militare', power: 8, description: 'Disappears into the night.', cooldown: 2, effect: { type: 'confuse', duration: 2 }, effectChance: 0.7 },
@@ -277,6 +286,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       img: import.meta.env.BASE_URL + 'img/trippi-troppi.png',
     },
     hp: 88, atk: 32, def: 26, spd: 28,
+    passive: { id: 'multiverse-form', name: 'Multiverse Form', emoji: '🌀', description: '25% chance to resist status effects.' },
     moves: [
       { name: 'Troppi Splash', type: 'aquatico', power: 20, description: 'Water from an unknowable dimension.', cooldown: 0 },
       { name: 'Multiverse Shift', type: 'aquatico', power: 15, description: 'Changes form. Which one? Yes.', cooldown: 2, effect: { type: 'brainrot', duration: 2 }, effectChance: 0.6 },
@@ -300,6 +310,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       img: import.meta.env.BASE_URL + 'img/lirili.png',
     },
     hp: 95, atk: 26, def: 30, spd: 22,
+    passive: { id: 'timeline-survivor', name: 'Timeline Survivor', emoji: '⏳', description: 'Heals 5 HP at end of each turn.' },
     moves: [
       { name: 'Sandal Smack', type: 'natura', power: 18, description: 'Oversized footwear, maximum impact.', cooldown: 0 },
       { name: 'Cactus Shield', type: 'natura', power: 0, description: 'Spiny defense. Restores 20 HP.', cooldown: 3 },
@@ -325,6 +336,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       img: import.meta.env.BASE_URL + 'img/frigo-camelo.png',
     },
     hp: 100, atk: 22, def: 32, spd: 15,
+    passive: { id: 'never-quit', name: 'Never Quit', emoji: '💪', description: '+20% defense when below 25% HP.' },
     moves: [
       { name: 'Cold Breath', type: 'cucina', power: 16, description: 'Refrigerated camel breath. Gross.', cooldown: 0 },
       { name: 'Deep Freeze', type: 'cucina', power: 12, description: 'Opens the fridge door. Everything freezes.', cooldown: 2, effect: { type: 'freeze', duration: 2 }, effectChance: 0.5 },
@@ -348,6 +360,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       img: import.meta.env.BASE_URL + 'img/boneca.png',
     },
     hp: 85, atk: 30, def: 28, spd: 26,
+    passive: { id: 'nightmare-aura', name: 'Nightmare Aura', emoji: '😱', description: 'Opponent takes 3 damage at end of each turn.' },
     moves: [
       { name: 'Tire Roll', type: 'spirito', power: 18, description: 'Rolls menacingly toward you.', cooldown: 0 },
       { name: 'Haunting Stare', type: 'spirito', power: 14, description: 'You feel deeply uncomfortable.', cooldown: 1, effect: { type: 'confuse', duration: 2 }, effectChance: 0.5 },
@@ -371,6 +384,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       img: import.meta.env.BASE_URL + 'img/rhino-toasterino.png',
     },
     hp: 92, atk: 28, def: 30, spd: 20,
+    passive: { id: 'toast-armor', name: 'Toast Armor', emoji: '🍞', description: '20% chance to negate recoil damage.' },
     moves: [
       { name: 'Toast Eject', type: 'cucina', power: 18, description: 'Surprise! Burning toast to the face.', cooldown: 0 },
       { name: 'Crumb Scatter', type: 'cucina', power: 12, description: 'Crumbs everywhere. Annoying and painful.', cooldown: 1, hits: 3 },
@@ -394,6 +408,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       img: import.meta.env.BASE_URL + 'img/bananita.png',
     },
     hp: 72, atk: 30, def: 18, spd: 40,
+    passive: { id: 'slippery', name: 'Slippery', emoji: '💨', description: '20% chance to dodge attacks completely.' },
     moves: [
       { name: 'Peel Slap', type: 'aquatico', power: 16, description: 'Tail whip with banana physics.', cooldown: 0 },
       { name: 'Slippery Dodge', type: 'aquatico', power: 0, description: 'Too slippery. Gains caffeinated buff.', cooldown: 2, effect: { type: 'caffeinated', duration: 3 }, effectChance: 1.0 },
@@ -417,6 +432,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       img: import.meta.env.BASE_URL + 'img/orangutini.png',
     },
     hp: 95, atk: 34, def: 26, spd: 22,
+    passive: { id: 'fruit-armor', name: 'Fruit Armor', emoji: '🍍', description: 'Starts battle with +10% max HP.' },
     moves: [
       { name: 'Pineapple Punch', type: 'frutta', power: 20, description: 'Spiky fist to the face.', cooldown: 0 },
       { name: 'Fruit Armor', type: 'frutta', power: 0, description: 'Hardens the pineapple shell. Heals 15 HP.', cooldown: 3 },
@@ -503,4 +519,29 @@ export function getEvolutionStage(level: number): EvolutionInfo {
 
 export function getDisplayName(baseName: string, level: number): string {
   return baseName + getEvolutionStage(level).suffix;
+}
+
+// ── Items ──────────────────────────────────────────────────
+
+export const ITEMS: Item[] = [
+  { id: 'espresso-shot', name: 'Espresso Shot', emoji: '☕', description: '+10% speed.', unlockCondition: { type: 'always' } },
+  { id: 'iron-plate', name: 'Iron Plate', emoji: '🛡️', description: '-8% incoming damage.', unlockCondition: { type: 'always' } },
+  { id: 'power-crystal', name: 'Power Crystal', emoji: '💎', description: '+8% damage dealt.', unlockCondition: { type: 'always' } },
+  { id: 'heal-berry', name: 'Heal Berry', emoji: '🍇', description: '+8 HP healed per turn.', unlockCondition: { type: 'arena', level: 2 } },
+  { id: 'status-charm', name: 'Status Charm', emoji: '🔮', description: '30% status resistance.', unlockCondition: { type: 'arena', level: 3 } },
+  { id: 'glass-cannon', name: 'Glass Cannon', emoji: '💥', description: '+20% damage, but +10% incoming damage.', unlockCondition: { type: 'arena', level: 4 } },
+  { id: 'cooldown-gear', name: 'Cooldown Gear', emoji: '⚙️', description: 'Cooldowns reduce 1 turn faster.', unlockCondition: { type: 'arena', level: 5 } },
+  { id: 'lucky-clover', name: 'Lucky Clover', emoji: '🍀', description: '+15% status effect chance.', unlockCondition: { type: 'floor', level: 5 } },
+  { id: 'life-orb', name: 'Life Orb', emoji: '🔴', description: '+12% damage, 5 recoil per attack.', unlockCondition: { type: 'floor', level: 10 } },
+  { id: 'last-stand', name: 'Last Stand', emoji: '🩸', description: '+25% damage when below 30% HP.', unlockCondition: { type: 'floor', level: 15 } },
+];
+
+export const STARTER_ITEM_IDS = ITEMS.filter(i => i.unlockCondition.type === 'always').map(i => i.id);
+
+export function isItemUnlocked(item: Item, stats: PlayerStats): boolean {
+  const cond = item.unlockCondition;
+  if (cond.type === 'always') return true;
+  if (cond.type === 'arena') return stats.highestArena >= cond.level;
+  if (cond.type === 'floor') return stats.endless.bestFloor >= cond.level;
+  return false;
 }

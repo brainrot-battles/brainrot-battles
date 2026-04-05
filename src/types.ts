@@ -29,6 +29,27 @@ export interface StatusEffect {
   duration: number; // turns
 }
 
+// ── Passive Ability ─────────────────────────────────────────
+
+export interface Passive {
+  id: string;
+  name: string;
+  description: string;
+  emoji: string;
+}
+
+// ── Items ───────────────────────────────────────────────────
+
+export interface Item {
+  id: string;
+  name: string;
+  description: string;
+  emoji: string;
+  unlockCondition: { type: 'always' } | { type: 'arena'; level: number } | { type: 'floor'; level: number };
+}
+
+// ── Character Template ──────────────────────────────────────
+
 export interface CharacterTemplate {
   id: string;
   name: string;
@@ -45,6 +66,7 @@ export interface CharacterTemplate {
   spd: number;
   moves: Move[];
   unlockArena: number; // arena level required to unlock (0 = always available)
+  passive: Passive;
 }
 
 export interface PortraitConfig {
@@ -78,6 +100,8 @@ export interface EndlessState {
 export interface BattleCharacter {
   template: CharacterTemplate;
   level: number; // level used for this battle (scales stats)
+  item: string | null; // equipped item ID
+  hasAttacked: boolean; // tracks first-strike passive
   currentHp: number;
   maxHp: number;
   status: StatusEffect | null;
@@ -107,6 +131,7 @@ export interface PlayerStats {
   unlockedIds: string[]; // character IDs unlocked
   characterProgress: Record<string, CharacterProgress>; // keyed by character id
   endless: EndlessState;
+  unlockedItems: string[]; // item IDs unlocked
 }
 
 export interface GameState {
@@ -117,4 +142,5 @@ export interface GameState {
   arenaLevel: number;
   stats: PlayerStats;
   mode: 'arena' | 'endless';
+  playerItems: Record<string, string | null>; // charId → itemId
 }

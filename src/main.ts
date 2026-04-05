@@ -1,7 +1,8 @@
 import './style.css';
 import type { GameState, BattleState, BattleCharacter, PlayerStats } from './types';
 import {
-  CHARACTERS, TYPE_INFO, TEAM_BUDGET, STARTER_IDS, ARENA_UNLOCK_CHARS,
+  CHARACTERS, TYPE_INFO, TEAM_BUDGET, STARTER_IDS, STARTER_ITEM_IDS, ARENA_UNLOCK_CHARS,
+  ITEMS, isItemUnlocked,
   ELO_START, XP_THRESHOLDS, levelFromXp, getEvolutionStage, getDisplayName,
 } from './data';
 import {
@@ -18,6 +19,8 @@ import {
   calculateXpReward,
   calculateElo,
   getEndlessSmartness,
+  onSwitchIn,
+  cpuEquipItems,
 } from './engine';
 import type { MoveResult } from './engine';
 
@@ -33,6 +36,7 @@ function loadStats(): PlayerStats {
       // Migration: add new fields if missing
       if (!parsed.characterProgress) parsed.characterProgress = {};
       if (!parsed.endless) parsed.endless = { floor: 0, elo: ELO_START, bestFloor: 0, streak: 0, bestStreak: 0 };
+      if (!parsed.unlockedItems) parsed.unlockedItems = [...STARTER_ITEM_IDS];
       return parsed;
     }
   } catch { /* ignore */ }
@@ -42,6 +46,7 @@ function loadStats(): PlayerStats {
     unlockedIds: [...STARTER_IDS],
     characterProgress: {},
     endless: { floor: 0, elo: ELO_START, bestFloor: 0, streak: 0, bestStreak: 0 },
+    unlockedItems: [...STARTER_ITEM_IDS],
   };
 }
 
@@ -91,12 +96,14 @@ const state: GameState = {
   arenaLevel: 1,
   stats: loadStats(),
   mode: 'arena',
+  playerItems: {},
 };
 
 // Transient result data (not persisted)
 let lastXpAwarded = 0;
 let lastLevelUps: { name: string; oldLevel: number; newLevel: number }[] = [];
 let lastNewUnlocks: string[] = [];
+let lastNewItemUnlocks: string[] = [];
 
 const app = document.getElementById('app')!;
 
@@ -313,6 +320,7 @@ function renderCharacterGrid(chars: { template: typeof CHARACTERS[0]; isSelected
             <span>DEF:${c.def}</span>
             <span>SPD:${c.spd}</span>
           </div>
+          <div class="char-card-passive">${c.passive.emoji} ${c.passive.name}</div>
           ${level < 20 ? `
             <div class="xp-bar-mini">
               <div class="xp-bar-fill" style="width:${xpPct}%"></div>
@@ -395,6 +403,8 @@ function renderSelect() {
         }).join('')}
       </div>
 
+      ${renderItemEquipRow()}
+
       <div class="character-grid">
         ${renderCharacterGrid(cardData)}
       </div>
@@ -411,6 +421,7 @@ function renderSelect() {
   `;
 
   setupCardEvents();
+  setupItemEvents();
 
   document.getElementById('btn-back')!.addEventListener('click', () => {
     state.screen = 'title';
@@ -420,9 +431,11 @@ function renderSelect() {
   document.getElementById('btn-fight')!.addEventListener('click', () => {
     if (state.playerTeam.length === 3) {
       const playerLevels = state.playerTeam.map(c => getCharLevel(c.id));
+      const playerItemArray = state.playerTeam.map(c => state.playerItems[c.id] || null);
       const { team, levels: cpuLevels } = generateCpuTeam(state.playerTeam, state.arenaLevel);
+      const cpuItemArray = cpuEquipItems(team, state.arenaLevel, 0);
       state.cpuTeam = team;
-      state.battle = initBattle(state.playerTeam, state.cpuTeam, playerLevels, cpuLevels);
+      state.battle = initBattle(state.playerTeam, state.cpuTeam, playerLevels, cpuLevels, playerItemArray, cpuItemArray);
       state.screen = 'battle';
       render();
     }
@@ -495,6 +508,8 @@ function renderEndlessSelect() {
         }).join('')}
       </div>
 
+      ${renderItemEquipRow()}
+
       <div class="character-grid">
         ${renderCharacterGrid(cardData)}
       </div>
@@ -511,6 +526,7 @@ function renderEndlessSelect() {
   `;
 
   setupCardEvents();
+  setupItemEvents();
 
   document.getElementById('btn-back')!.addEventListener('click', () => {
     state.screen = 'title';
@@ -520,12 +536,113 @@ function renderEndlessSelect() {
   document.getElementById('btn-fight')!.addEventListener('click', () => {
     if (state.playerTeam.length === 3) {
       const playerLevels = state.playerTeam.map(c => getCharLevel(c.id));
+      const playerItemArray = state.playerTeam.map(c => state.playerItems[c.id] || null);
       const { team, levels: cpuLevels } = generateEndlessCpuTeam(state.playerTeam, nextFloor);
+      const cpuItemArray = cpuEquipItems(team, state.arenaLevel, nextFloor);
       state.cpuTeam = team;
-      state.battle = initBattle(state.playerTeam, state.cpuTeam, playerLevels, cpuLevels);
+      state.battle = initBattle(state.playerTeam, state.cpuTeam, playerLevels, cpuLevels, playerItemArray, cpuItemArray);
       state.screen = 'battle';
       render();
     }
+  });
+}
+
+// ── Item Equip UI ──────────────────────────────────────────
+
+function renderItemEquipRow(): string {
+  if (state.playerTeam.length === 0) return '';
+  const unlockedItemIds = state.stats.unlockedItems;
+  return `
+    <div class="item-equip-row">
+      ${state.playerTeam.map(char => {
+        const itemId = state.playerItems[char.id];
+        const item = itemId ? ITEMS.find(i => i.id === itemId) : null;
+        return `
+          <div class="item-slot" data-equip-char="${char.id}">
+            <span style="font-size:0.6rem;color:var(--text-dim);font-family:var(--font-pixel)">${char.name.split(' ')[0]}</span>
+            <span class="item-slot-icon">${item ? item.emoji : '➕'}</span>
+            <span style="font-size:0.55rem;color:${item ? 'var(--yellow)' : 'var(--text-dim)'}">${item ? item.name : 'No item'}</span>
+          </div>
+        `;
+      }).join('')}
+    </div>
+    <p style="color:var(--text-dim);font-size:0.6rem;text-align:center;margin-top:0.2rem">${unlockedItemIds.length}/${ITEMS.length} items unlocked</p>
+  `;
+}
+
+function showItemModal(charId: string) {
+  const existing = document.querySelector('.item-modal-overlay');
+  if (existing) existing.remove();
+
+  const char = CHARACTERS.find(c => c.id === charId)!;
+  const unlockedItemIds = state.stats.unlockedItems;
+  const currentItemId = state.playerItems[charId];
+
+  // Items already equipped by other team members
+  const equippedByOthers = new Set(
+    state.playerTeam
+      .filter(c => c.id !== charId && state.playerItems[c.id])
+      .map(c => state.playerItems[c.id]!)
+  );
+
+  const overlay = document.createElement('div');
+  overlay.className = 'item-modal-overlay';
+  overlay.innerHTML = `
+    <div class="item-modal">
+      <h3 style="font-family:var(--font-pixel);font-size:0.7rem;margin-bottom:0.5rem">EQUIP ITEM — ${char.name.split(' ')[0]}</h3>
+      <div class="item-grid">
+        <div class="item-card ${!currentItemId ? 'selected' : ''}" data-item-pick="">
+          <span class="item-card-emoji">✖</span>
+          <span class="item-card-name">None</span>
+        </div>
+        ${ITEMS.map(item => {
+          const unlocked = unlockedItemIds.includes(item.id);
+          const taken = equippedByOthers.has(item.id);
+          const selected = currentItemId === item.id;
+          return `
+            <div class="item-card ${selected ? 'selected' : ''} ${!unlocked ? 'locked' : ''} ${taken ? 'taken' : ''}"
+                 data-item-pick="${item.id}" ${!unlocked || taken ? '' : ''}>
+              ${!unlocked ? '<div class="lock-overlay" style="font-size:0.5rem">🔒</div>' : ''}
+              ${taken ? '<div class="lock-overlay" style="font-size:0.5rem">IN USE</div>' : ''}
+              <span class="item-card-emoji">${item.emoji}</span>
+              <span class="item-card-name">${item.name}</span>
+              <span class="item-card-desc">${item.description}</span>
+            </div>
+          `;
+        }).join('')}
+      </div>
+      <button class="btn btn-small" id="btn-close-items" style="margin-top:0.5rem">CLOSE</button>
+    </div>
+  `;
+
+  app.appendChild(overlay);
+
+  overlay.querySelector('#btn-close-items')?.addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
+
+  overlay.querySelectorAll('.item-card:not(.locked):not(.taken)').forEach(card => {
+    card.addEventListener('click', () => {
+      const itemId = (card as HTMLElement).dataset.itemPick!;
+      if (itemId) {
+        state.playerItems[charId] = itemId;
+      } else {
+        state.playerItems[charId] = null;
+      }
+      overlay.remove();
+      render();
+    });
+  });
+}
+
+function setupItemEvents() {
+  app.querySelectorAll('[data-equip-char]').forEach(slot => {
+    slot.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const charId = (slot as HTMLElement).dataset.equipChar!;
+      showItemModal(charId);
+    });
   });
 }
 
@@ -570,6 +687,10 @@ function renderBattle() {
             <div class="fighter-name">${playerName} <span class="level-indicator">Lv.${player.level}</span></div>
             ${renderHpBar(player)}
             ${renderStatus(player)}
+            <div class="fighter-indicators">
+              <span class="passive-indicator" title="${player.template.passive.description}">${player.template.passive.emoji} ${player.template.passive.name}</span>
+              ${player.item ? `<span class="item-indicator" title="${ITEMS.find(i => i.id === player.item)?.description || ''}">${ITEMS.find(i => i.id === player.item)?.emoji || ''} ${ITEMS.find(i => i.id === player.item)?.name || ''}</span>` : ''}
+            </div>
           </div>
         </div>
         <div class="fighter fighter-cpu" id="fighter-cpu">
@@ -578,6 +699,10 @@ function renderBattle() {
             <div class="fighter-name">${cpuName} <span class="level-indicator">Lv.${cpu.level}</span></div>
             ${renderHpBar(cpu)}
             ${renderStatus(cpu)}
+            <div class="fighter-indicators">
+              <span class="passive-indicator" title="${cpu.template.passive.description}">${cpu.template.passive.emoji} ${cpu.template.passive.name}</span>
+              ${cpu.item ? `<span class="item-indicator" title="${ITEMS.find(i => i.id === cpu.item)?.description || ''}">${ITEMS.find(i => i.id === cpu.item)?.emoji || ''} ${ITEMS.find(i => i.id === cpu.item)?.name || ''}</span>` : ''}
+            </div>
           </div>
         </div>
       </div>
@@ -608,6 +733,10 @@ function renderBattle() {
       const idx = parseInt((el as HTMLElement).dataset.switch!);
       b.playerActive = idx;
       b.log.push(`You send out ${b.playerTeam[idx].template.name}!`);
+      const switchResult = onSwitchIn(b.playerTeam[idx], b.cpuTeam[b.cpuActive]);
+      if (switchResult.confusedOpponent) {
+        b.log.push(`${b.cpuTeam[b.cpuActive].template.name} is confused by the dramatic entrance! 🎭`);
+      }
       b.phase = 'select_action';
       render();
     });
@@ -704,8 +833,8 @@ async function executeTurn(playerMoveIdx: number) {
     if (await checkFaintAndSwitch(b)) return;
   }
 
-  await endOfTurnTick(b, player, 'Your');
-  await endOfTurnTick(b, cpu, 'Enemy');
+  await endOfTurnTick(b, player, cpu, 'Your', 'Enemy');
+  await endOfTurnTick(b, cpu, player, 'Enemy', 'Your');
 
   if (await checkFaintAndSwitch(b)) return;
 
@@ -744,7 +873,8 @@ async function executeAttack(
   render();
   await delay(900);
 
-  const result = applyMove(attacker, defender, moveIdx);
+  const attackerTeam = side === 'player' ? b.playerTeam : b.cpuTeam;
+  const result = applyMove(attacker, defender, moveIdx, attackerTeam);
 
   // Floating damage numbers
   const targetId = side === 'player' ? 'fighter-cpu' : 'fighter-player';
@@ -784,6 +914,11 @@ function logMoveResult(
     return;
   }
 
+  if (result.dodged) {
+    b.log.push(`${defenderName} dodged the attack! 💨`);
+    return;
+  }
+
   if (result.damage > 0) {
     let msg = `It deals ${result.damage} damage!`;
     if (result.effectiveness > 1.5) msg += ' Super effective! 💥';
@@ -816,11 +951,30 @@ function logMoveResult(
   }
 }
 
-async function endOfTurnTick(b: BattleState, char: BattleCharacter, label: string) {
+async function endOfTurnTick(b: BattleState, char: BattleCharacter, opponent: BattleCharacter, label: string, oppLabel: string) {
   if (!char.isAlive) return;
-  const { bleedDamage } = tickEndOfTurn(char);
+  const name = getDisplayName(char.template.name, char.level);
+  const oppName = getDisplayName(opponent.template.name, opponent.level);
+  const { bleedDamage, passiveHeal, itemHeal, nightmareDamage } = tickEndOfTurn(char, opponent);
+
+  let logged = false;
   if (bleedDamage > 0) {
-    b.log.push(`${label} ${getDisplayName(char.template.name, char.level)} takes ${bleedDamage} bleed damage! 🩸`);
+    b.log.push(`${label} ${name} takes ${bleedDamage} bleed damage! 🩸`);
+    logged = true;
+  }
+  if (passiveHeal > 0) {
+    b.log.push(`${label} ${name} heals ${passiveHeal} HP! ⏳`);
+    logged = true;
+  }
+  if (itemHeal > 0) {
+    b.log.push(`${label} ${name} heals ${itemHeal} HP! 🍇`);
+    logged = true;
+  }
+  if (nightmareDamage > 0) {
+    b.log.push(`${oppLabel} ${oppName} takes ${nightmareDamage} nightmare damage! 😱`);
+    logged = true;
+  }
+  if (logged) {
     render();
     await delay(700);
   }
@@ -840,6 +994,10 @@ async function checkFaintAndSwitch(b: BattleState): Promise<boolean> {
     if (next !== null) {
       b.cpuActive = next;
       b.log.push(`CPU sends out ${b.cpuTeam[next].template.name}!`);
+      const switchResult = onSwitchIn(b.cpuTeam[next], b.playerTeam[b.playerActive]);
+      if (switchResult.confusedOpponent) {
+        b.log.push(`${b.playerTeam[b.playerActive].template.name} is confused by the dramatic entrance! 🎭`);
+      }
       render();
       await delay(900);
     }
@@ -918,6 +1076,15 @@ function handleGameEnd(won: boolean) {
     }
   }
 
+  // Check for new item unlocks
+  lastNewItemUnlocks = [];
+  for (const item of ITEMS) {
+    if (!s.unlockedItems.includes(item.id) && isItemUnlocked(item, s)) {
+      s.unlockedItems.push(item.id);
+      lastNewItemUnlocks.push(item.id);
+    }
+  }
+
   saveStats(s);
 }
 
@@ -981,6 +1148,23 @@ function renderResult() {
         </div>
       ` : ''}
 
+      ${lastNewItemUnlocks.length > 0 ? `
+        <div class="unlock-banner animate-fade-in">
+          <h3 class="pixel-text" style="font-size:0.6rem;color:var(--yellow);margin-bottom:0.5rem">NEW ITEMS UNLOCKED!</h3>
+          <div style="display:flex;gap:0.8rem;justify-content:center;flex-wrap:wrap">
+            ${lastNewItemUnlocks.map(id => {
+              const item = ITEMS.find(i => i.id === id);
+              return item ? `
+                <div class="unlock-card">
+                  <span style="font-size:2rem">${item.emoji}</span>
+                  <span style="font-size:0.6rem;color:var(--text-bright);font-family:var(--font-pixel);margin-top:0.3rem;text-align:center">${item.name}</span>
+                </div>
+              ` : '';
+            }).join('')}
+          </div>
+        </div>
+      ` : ''}
+
       <div class="result-buttons">
         ${state.mode === 'arena' ? `
           ${won && state.arenaLevel < 5 ? `
@@ -1008,9 +1192,11 @@ function renderResult() {
 
   document.getElementById('btn-rematch')?.addEventListener('click', () => {
     const playerLevels = state.playerTeam.map(c => getCharLevel(c.id));
+    const playerItemArray = state.playerTeam.map(c => state.playerItems[c.id] || null);
     const { team, levels: cpuLevels } = generateCpuTeam(state.playerTeam, state.arenaLevel);
+    const cpuItemArray = cpuEquipItems(team, state.arenaLevel, 0);
     state.cpuTeam = team;
-    state.battle = initBattle(state.playerTeam, state.cpuTeam, playerLevels, cpuLevels);
+    state.battle = initBattle(state.playerTeam, state.cpuTeam, playerLevels, cpuLevels, playerItemArray, cpuItemArray);
     state.screen = 'battle';
     render();
   });
@@ -1018,20 +1204,24 @@ function renderResult() {
   // Endless buttons
   document.getElementById('btn-next-floor')?.addEventListener('click', () => {
     const playerLevels = state.playerTeam.map(c => getCharLevel(c.id));
+    const playerItemArray = state.playerTeam.map(c => state.playerItems[c.id] || null);
     const nextFloor = state.stats.endless.floor + 1;
     const { team, levels: cpuLevels } = generateEndlessCpuTeam(state.playerTeam, nextFloor);
+    const cpuItemArray = cpuEquipItems(team, state.arenaLevel, nextFloor);
     state.cpuTeam = team;
-    state.battle = initBattle(state.playerTeam, state.cpuTeam, playerLevels, cpuLevels);
+    state.battle = initBattle(state.playerTeam, state.cpuTeam, playerLevels, cpuLevels, playerItemArray, cpuItemArray);
     state.screen = 'battle';
     render();
   });
 
   document.getElementById('btn-retry-floor')?.addEventListener('click', () => {
     const playerLevels = state.playerTeam.map(c => getCharLevel(c.id));
+    const playerItemArray = state.playerTeam.map(c => state.playerItems[c.id] || null);
     const retryFloor = state.stats.endless.floor + 1;
     const { team, levels: cpuLevels } = generateEndlessCpuTeam(state.playerTeam, retryFloor);
+    const cpuItemArray = cpuEquipItems(team, state.arenaLevel, retryFloor);
     state.cpuTeam = team;
-    state.battle = initBattle(state.playerTeam, state.cpuTeam, playerLevels, cpuLevels);
+    state.battle = initBattle(state.playerTeam, state.cpuTeam, playerLevels, cpuLevels, playerItemArray, cpuItemArray);
     state.screen = 'battle';
     render();
   });
