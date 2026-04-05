@@ -1,6 +1,9 @@
 import './style.css';
 import type { GameState, BattleState, BattleCharacter, PlayerStats } from './types';
-import { CHARACTERS, TYPE_INFO, TEAM_BUDGET, STARTER_IDS, ARENA_UNLOCK_CHARS } from './data';
+import {
+  CHARACTERS, TYPE_INFO, TEAM_BUDGET, STARTER_IDS, ARENA_UNLOCK_CHARS,
+  ELO_START, XP_THRESHOLDS, levelFromXp, getEvolutionStage, getDisplayName,
+} from './data';
 import {
   initBattle,
   applyMove,
@@ -11,6 +14,10 @@ import {
   isTeamDefeated,
   getFirstAttacker,
   generateCpuTeam,
+  generateEndlessCpuTeam,
+  calculateXpReward,
+  calculateElo,
+  getEndlessSmartness,
 } from './engine';
 import type { MoveResult } from './engine';
 
@@ -21,17 +28,57 @@ const STORAGE_KEY = 'brainrot-battles-stats';
 function loadStats(): PlayerStats {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // Migration: add new fields if missing
+      if (!parsed.characterProgress) parsed.characterProgress = {};
+      if (!parsed.endless) parsed.endless = { floor: 0, elo: ELO_START, bestFloor: 0, streak: 0, bestStreak: 0 };
+      return parsed;
+    }
   } catch { /* ignore */ }
   return {
     wins: 0, losses: 0, winStreak: 0, bestStreak: 0,
     highestArena: 1,
     unlockedIds: [...STARTER_IDS],
+    characterProgress: {},
+    endless: { floor: 0, elo: ELO_START, bestFloor: 0, streak: 0, bestStreak: 0 },
   };
 }
 
 function saveStats(stats: PlayerStats) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(stats));
+}
+
+// ── Character Progress Helpers ──────────────────────────────
+
+function getCharLevel(charId: string): number {
+  const prog = state.stats.characterProgress[charId];
+  return prog ? levelFromXp(prog.xp) : 1;
+}
+
+function getCharXp(charId: string): number {
+  return state.stats.characterProgress[charId]?.xp ?? 0;
+}
+
+function addXpToChar(charId: string, amount: number): { oldLevel: number; newLevel: number } {
+  if (!state.stats.characterProgress[charId]) {
+    state.stats.characterProgress[charId] = { xp: 0, level: 1 };
+  }
+  const prog = state.stats.characterProgress[charId];
+  const oldLevel = levelFromXp(prog.xp);
+  prog.xp += amount;
+  const newLevel = levelFromXp(prog.xp);
+  prog.level = newLevel;
+  return { oldLevel, newLevel };
+}
+
+function xpProgressPercent(charId: string): number {
+  const xp = getCharXp(charId);
+  const level = levelFromXp(xp);
+  if (level >= XP_THRESHOLDS.length - 1) return 100;
+  const current = XP_THRESHOLDS[level];
+  const next = XP_THRESHOLDS[level + 1];
+  return Math.round(((xp - current) / (next - current)) * 100);
 }
 
 // ── Game State ──────────────────────────────────────────────
@@ -43,7 +90,13 @@ const state: GameState = {
   battle: null,
   arenaLevel: 1,
   stats: loadStats(),
+  mode: 'arena',
 };
+
+// Transient result data (not persisted)
+let lastXpAwarded = 0;
+let lastLevelUps: { name: string; oldLevel: number; newLevel: number }[] = [];
+let lastNewUnlocks: string[] = [];
 
 const app = document.getElementById('app')!;
 
@@ -71,10 +124,14 @@ function canAfford(cost: number): boolean {
 
 // ── Portrait Renderer ───────────────────────────────────────
 
-function renderPortrait(char: { portrait: { bg: string; icon: string; accent: string; img: string }; name: string }, size: 'sm' | 'md' | 'lg' = 'md'): string {
+function renderPortrait(
+  char: { portrait: { bg: string; icon: string; accent: string; img: string }; name: string },
+  size: 'sm' | 'md' | 'lg' = 'md',
+  evolutionClass: string = '',
+): string {
   const sizes = { sm: '48px', md: '80px', lg: '120px' };
   const s = sizes[size];
-  return `
+  const portraitHtml = `
     <div class="portrait portrait-${size}" style="
       width:${s}; height:${s};
       background:${char.portrait.bg};
@@ -92,6 +149,8 @@ function renderPortrait(char: { portrait: { bg: string; icon: string; accent: st
       <div style="position:absolute;inset:0;background:radial-gradient(circle at 30% 30%, rgba(255,255,255,0.08) 0%, transparent 60%);z-index:2;pointer-events:none;"></div>
     </div>
   `;
+  if (!evolutionClass) return portraitHtml;
+  return `<div class="evo-wrapper ${evolutionClass}">${portraitHtml}</div>`;
 }
 
 // ── Sarcastic Lines ─────────────────────────────────────────
@@ -122,7 +181,7 @@ const INTRO_LINES = [
   "Italy's greatest cultural export since pizza.",
 ];
 
-// ── Floating Damage Number ───���──────────────────────────────
+// ── Floating Damage Number ──────────────────────────────────
 
 function showFloatingText(targetId: string, text: string, color: string) {
   const target = document.getElementById(targetId);
@@ -152,6 +211,7 @@ function render() {
   switch (state.screen) {
     case 'title': renderTitle(); break;
     case 'select': renderSelect(); break;
+    case 'endless_select': renderEndlessSelect(); break;
     case 'battle': renderBattle(); break;
     case 'result': renderResult(); break;
   }
@@ -164,6 +224,7 @@ function renderTitle() {
   const streakDisplay = s.winStreak > 0
     ? `<span style="color:var(--green)">🔥 ${s.winStreak} win streak</span>`
     : '';
+  const endlessUnlocked = s.highestArena >= 5;
 
   app.innerHTML = `
     <div class="title-screen">
@@ -178,11 +239,19 @@ function renderTitle() {
           `<span class="title-char-icon">${e}</span>`
         ).join('')}
       </div>
-      <button class="btn btn-large" id="btn-start">START GAME</button>
+      <div class="title-buttons">
+        <button class="btn btn-large" id="btn-start">ARENA MODE</button>
+        ${endlessUnlocked ? `<button class="btn btn-large" id="btn-endless" style="border-color:var(--yellow);color:var(--yellow)">ENDLESS MODE</button>` : ''}
+      </div>
       <div class="title-stats">
         <p>Arena ${state.arenaLevel} / 5 ${streakDisplay}</p>
         <p>${s.wins}W - ${s.losses}L ${s.bestStreak > 0 ? `| Best streak: ${s.bestStreak}` : ''}</p>
         <p style="font-size:0.65rem; margin-top:0.3rem">${s.unlockedIds.length} / ${CHARACTERS.length} fighters unlocked</p>
+        ${endlessUnlocked ? `
+          <p style="font-size:0.65rem; margin-top:0.3rem; color:var(--yellow)">
+            Endless: Floor ${s.endless.bestFloor} | ELO ${s.endless.elo}
+          </p>
+        ` : ''}
       </div>
       ${s.wins > 0 ? `<button class="btn btn-small" id="btn-reset" style="opacity:0.5">RESET PROGRESS</button>` : ''}
     </div>
@@ -190,12 +259,20 @@ function renderTitle() {
 
   document.getElementById('btn-start')!.addEventListener('click', () => {
     state.playerTeam = [];
+    state.mode = 'arena';
     state.screen = 'select';
     render();
   });
 
+  document.getElementById('btn-endless')?.addEventListener('click', () => {
+    state.playerTeam = [];
+    state.mode = 'endless';
+    state.screen = 'endless_select';
+    render();
+  });
+
   document.getElementById('btn-reset')?.addEventListener('click', () => {
-    if (confirm('Reset all progress? Unlocks, stats, everything gone.')) {
+    if (confirm('Reset all progress? Unlocks, stats, XP, everything gone.')) {
       localStorage.removeItem(STORAGE_KEY);
       state.stats = loadStats();
       state.arenaLevel = 1;
@@ -204,12 +281,90 @@ function renderTitle() {
   });
 }
 
-// ── Character Select ─────────────────────────────���──────────
+// ── Character Select (shared rendering logic) ───────────────
+
+function renderCharacterGrid(chars: { template: typeof CHARACTERS[0]; isSelected: boolean; disabled: boolean; locked: boolean; tooExpensive: boolean }[]): string {
+  return chars.map(({ template: c, isSelected, disabled, locked, tooExpensive }) => {
+    const info = TYPE_INFO[c.type];
+    const level = getCharLevel(c.id);
+    const evo = getEvolutionStage(level);
+    const displayName = getDisplayName(c.name, level);
+    const xpPct = xpProgressPercent(c.id);
+    return `
+      <div class="char-card ${isSelected ? 'selected' : ''} ${disabled ? 'disabled' : ''} ${locked ? 'locked' : ''}"
+           data-id="${c.id}">
+        ${locked ? '<div class="lock-overlay">🔒 Arena ' + c.unlockArena + '</div>' : ''}
+        <div class="char-card-portrait">
+          ${renderPortrait(c, 'sm', evo.cssClass)}
+        </div>
+        <div class="char-card-info">
+          <div class="char-card-name">${displayName}</div>
+          <div class="char-card-meta">
+            <span class="type-badge" style="background:${info.color}22; color:${info.color}">
+              ${info.emoji} ${info.label}
+            </span>
+            <span class="tier-badge tier-${c.tier}">T${c.tier}</span>
+            <span class="cost-badge" style="color:${tooExpensive ? 'var(--red)' : 'var(--text-dim)'}">⬡${c.cost}</span>
+            <span class="level-badge">Lv.${level}</span>
+          </div>
+          <div class="char-card-stats">
+            <span>HP:${c.hp}</span>
+            <span>ATK:${c.atk}</span>
+            <span>DEF:${c.def}</span>
+            <span>SPD:${c.spd}</span>
+          </div>
+          ${level < 20 ? `
+            <div class="xp-bar-mini">
+              <div class="xp-bar-fill" style="width:${xpPct}%"></div>
+            </div>
+          ` : `<div class="xp-bar-mini"><div class="xp-bar-fill xp-max" style="width:100%"></div></div>`}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function setupCardEvents() {
+  app.querySelectorAll('.char-card:not(.locked)').forEach(card => {
+    card.addEventListener('click', () => {
+      const id = (card as HTMLElement).dataset.id!;
+      const idx = state.playerTeam.findIndex(c => c.id === id);
+      if (idx >= 0) {
+        state.playerTeam.splice(idx, 1);
+      } else if (state.playerTeam.length < 3) {
+        const char = CHARACTERS.find(c => c.id === id)!;
+        if (canAfford(char.cost)) {
+          state.playerTeam.push(char);
+        }
+      }
+      render();
+    });
+  });
+
+  app.querySelectorAll('[data-remove]').forEach(slot => {
+    slot.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const idx = parseInt((slot as HTMLElement).dataset.remove!);
+      state.playerTeam.splice(idx, 1);
+      render();
+    });
+  });
+}
+
+// ── Arena Select Screen ─────────────────────────────────────
 
 function renderSelect() {
   const selectedIds = state.playerTeam.map(c => c.id);
   const currentCost = getTeamCost();
   const remaining = TEAM_BUDGET - currentCost;
+
+  const cardData = CHARACTERS.map(c => {
+    const isSelected = selectedIds.includes(c.id);
+    const locked = !isUnlocked(c.id);
+    const tooExpensive = !isSelected && state.playerTeam.length < 3 && !canAfford(c.cost);
+    const isFull = state.playerTeam.length >= 3 && !isSelected;
+    return { template: c, isSelected, disabled: locked || tooExpensive || isFull, locked, tooExpensive };
+  });
 
   app.innerHTML = `
     <div class="select-screen">
@@ -225,53 +380,23 @@ function renderSelect() {
           <span class="budget-remaining">${remaining} left</span>
         </div>
         <p style="color:var(--text-dim);font-size:0.75rem;margin-top:0.3rem">
-          ${state.playerTeam.length}/3 selected | S=5 A=4 B=3 C=2 points
+          ${state.playerTeam.length}/3 selected | S=5 A=4 B=3 C=2 points | Arena ${state.arenaLevel}
         </p>
       </div>
 
       <div class="team-preview">
         ${[0, 1, 2].map(i => {
           const char = state.playerTeam[i];
+          const level = char ? getCharLevel(char.id) : 1;
+          const evo = char ? getEvolutionStage(level) : null;
           return `<div class="team-slot ${char ? 'filled' : ''}" ${char ? `data-remove="${i}"` : ''}>
-            ${char ? renderPortrait(char, 'sm') : '<span style="color:var(--text-dim);font-size:1.5rem">?</span>'}
+            ${char ? renderPortrait(char, 'sm', evo?.cssClass || '') : '<span style="color:var(--text-dim);font-size:1.5rem">?</span>'}
           </div>`;
         }).join('')}
       </div>
 
       <div class="character-grid">
-        ${CHARACTERS.map(c => {
-          const isSelected = selectedIds.includes(c.id);
-          const locked = !isUnlocked(c.id);
-          const tooExpensive = !isSelected && state.playerTeam.length < 3 && !canAfford(c.cost);
-          const isFull = state.playerTeam.length >= 3 && !isSelected;
-          const disabled = locked || tooExpensive || isFull;
-          const info = TYPE_INFO[c.type];
-          return `
-            <div class="char-card ${isSelected ? 'selected' : ''} ${disabled ? 'disabled' : ''} ${locked ? 'locked' : ''}"
-                 data-id="${c.id}">
-              ${locked ? '<div class="lock-overlay">🔒 Arena ' + c.unlockArena + '</div>' : ''}
-              <div class="char-card-portrait">
-                ${renderPortrait(c, 'sm')}
-              </div>
-              <div class="char-card-info">
-                <div class="char-card-name">${c.name}</div>
-                <div class="char-card-meta">
-                  <span class="type-badge" style="background:${info.color}22; color:${info.color}">
-                    ${info.emoji} ${info.label}
-                  </span>
-                  <span class="tier-badge tier-${c.tier}">T${c.tier}</span>
-                  <span class="cost-badge" style="color:${tooExpensive ? 'var(--red)' : 'var(--text-dim)'}">⬡${c.cost}</span>
-                </div>
-                <div class="char-card-stats">
-                  <span>HP:${c.hp}</span>
-                  <span>ATK:${c.atk}</span>
-                  <span>DEF:${c.def}</span>
-                  <span>SPD:${c.spd}</span>
-                </div>
-              </div>
-            </div>
-          `;
-        }).join('')}
+        ${renderCharacterGrid(cardData)}
       </div>
 
       <div class="select-footer">
@@ -285,31 +410,7 @@ function renderSelect() {
     </div>
   `;
 
-  // Events
-  app.querySelectorAll('.char-card:not(.locked)').forEach(card => {
-    card.addEventListener('click', () => {
-      const id = (card as HTMLElement).dataset.id!;
-      const idx = state.playerTeam.findIndex(c => c.id === id);
-      if (idx >= 0) {
-        state.playerTeam.splice(idx, 1);
-      } else if (state.playerTeam.length < 3) {
-        const char = CHARACTERS.find(c => c.id === id)!;
-        if (canAfford(char.cost)) {
-          state.playerTeam.push(char);
-        }
-      }
-      renderSelect();
-    });
-  });
-
-  app.querySelectorAll('[data-remove]').forEach(slot => {
-    slot.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const idx = parseInt((slot as HTMLElement).dataset.remove!);
-      state.playerTeam.splice(idx, 1);
-      renderSelect();
-    });
-  });
+  setupCardEvents();
 
   document.getElementById('btn-back')!.addEventListener('click', () => {
     state.screen = 'title';
@@ -318,21 +419,127 @@ function renderSelect() {
 
   document.getElementById('btn-fight')!.addEventListener('click', () => {
     if (state.playerTeam.length === 3) {
-      state.cpuTeam = generateCpuTeam(state.playerTeam, state.arenaLevel);
-      state.battle = initBattle(state.playerTeam, state.cpuTeam);
+      const playerLevels = state.playerTeam.map(c => getCharLevel(c.id));
+      const { team, levels: cpuLevels } = generateCpuTeam(state.playerTeam, state.arenaLevel);
+      state.cpuTeam = team;
+      state.battle = initBattle(state.playerTeam, state.cpuTeam, playerLevels, cpuLevels);
       state.screen = 'battle';
       render();
     }
   });
 }
 
-// ── Battle Screen ────────��───────────────────────────────��──
+// ── Endless Select Screen ───────────────────────────────────
+
+function renderEndlessSelect() {
+  const selectedIds = state.playerTeam.map(c => c.id);
+  const currentCost = getTeamCost();
+  const remaining = TEAM_BUDGET - currentCost;
+  const e = state.stats.endless;
+  const nextFloor = e.floor + 1;
+  const isBoss = nextFloor % 5 === 0 && nextFloor > 0;
+
+  // In endless mode, all characters are available
+  const cardData = CHARACTERS.map(c => {
+    const isSelected = selectedIds.includes(c.id);
+    const tooExpensive = !isSelected && state.playerTeam.length < 3 && !canAfford(c.cost);
+    const isFull = state.playerTeam.length >= 3 && !isSelected;
+    return { template: c, isSelected, disabled: tooExpensive || isFull, locked: false, tooExpensive };
+  });
+
+  app.innerHTML = `
+    <div class="select-screen">
+      <div class="endless-header">
+        <div class="endless-stat">
+          <span class="endless-stat-label">FLOOR</span>
+          <span class="endless-stat-value">${nextFloor} ${isBoss ? '👑' : ''}</span>
+        </div>
+        <div class="endless-stat">
+          <span class="endless-stat-label">ELO</span>
+          <span class="endless-stat-value elo-display">${e.elo}</span>
+        </div>
+        <div class="endless-stat">
+          <span class="endless-stat-label">STREAK</span>
+          <span class="endless-stat-value">${e.streak > 0 ? '🔥 ' + e.streak : '0'}</span>
+        </div>
+        <div class="endless-stat">
+          <span class="endless-stat-label">BEST</span>
+          <span class="endless-stat-value">F${e.bestFloor}</span>
+        </div>
+      </div>
+
+      <div class="select-header">
+        <h2>ENDLESS MODE</h2>
+        <div class="budget-bar">
+          <span>BUDGET: </span>
+          <span class="budget-dots">
+            ${Array.from({ length: TEAM_BUDGET }, (_, i) =>
+              `<span class="budget-dot ${i < currentCost ? 'spent' : 'available'}"></span>`
+            ).join('')}
+          </span>
+          <span class="budget-remaining">${remaining} left</span>
+        </div>
+        <p style="color:var(--text-dim);font-size:0.75rem;margin-top:0.3rem">
+          ${state.playerTeam.length}/3 selected | All fighters unlocked
+        </p>
+      </div>
+
+      <div class="team-preview">
+        ${[0, 1, 2].map(i => {
+          const char = state.playerTeam[i];
+          const level = char ? getCharLevel(char.id) : 1;
+          const evo = char ? getEvolutionStage(level) : null;
+          return `<div class="team-slot ${char ? 'filled' : ''}" ${char ? `data-remove="${i}"` : ''}>
+            ${char ? renderPortrait(char, 'sm', evo?.cssClass || '') : '<span style="color:var(--text-dim);font-size:1.5rem">?</span>'}
+          </div>`;
+        }).join('')}
+      </div>
+
+      <div class="character-grid">
+        ${renderCharacterGrid(cardData)}
+      </div>
+
+      <div class="select-footer">
+        <button class="btn btn-small" id="btn-back">BACK</button>
+        <button class="btn ${state.playerTeam.length === 3 ? 'btn-large' : 'btn-small'}"
+                id="btn-fight"
+                ${state.playerTeam.length < 3 ? 'disabled style="opacity:0.3;pointer-events:none"' : ''}>
+          FLOOR ${nextFloor}${isBoss ? ' (BOSS)' : ''} — FIGHT!
+        </button>
+      </div>
+    </div>
+  `;
+
+  setupCardEvents();
+
+  document.getElementById('btn-back')!.addEventListener('click', () => {
+    state.screen = 'title';
+    render();
+  });
+
+  document.getElementById('btn-fight')!.addEventListener('click', () => {
+    if (state.playerTeam.length === 3) {
+      const playerLevels = state.playerTeam.map(c => getCharLevel(c.id));
+      const { team, levels: cpuLevels } = generateEndlessCpuTeam(state.playerTeam, nextFloor);
+      state.cpuTeam = team;
+      state.battle = initBattle(state.playerTeam, state.cpuTeam, playerLevels, cpuLevels);
+      state.screen = 'battle';
+      render();
+    }
+  });
+}
+
+// ── Battle Screen ───────────────────────────────────────────
 
 function renderBattle() {
   if (!state.battle) return;
   const b = state.battle;
   const player = b.playerTeam[b.playerActive];
   const cpu = b.cpuTeam[b.cpuActive];
+  const playerEvo = getEvolutionStage(player.level).cssClass;
+  const cpuEvo = getEvolutionStage(cpu.level).cssClass;
+  const playerName = getDisplayName(player.template.name, player.level);
+  const cpuName = getDisplayName(cpu.template.name, cpu.level);
 
   app.innerHTML = `
     <div class="battle-screen">
@@ -358,17 +565,17 @@ function renderBattle() {
 
       <div class="battle-field">
         <div class="fighter fighter-player" id="fighter-player">
-          ${renderPortrait(player.template, 'lg')}
+          ${renderPortrait(player.template, 'lg', playerEvo)}
           <div class="fighter-info">
-            <div class="fighter-name">${player.template.name}</div>
+            <div class="fighter-name">${playerName} <span class="level-indicator">Lv.${player.level}</span></div>
             ${renderHpBar(player)}
             ${renderStatus(player)}
           </div>
         </div>
         <div class="fighter fighter-cpu" id="fighter-cpu">
-          ${renderPortrait(cpu.template, 'lg')}
+          ${renderPortrait(cpu.template, 'lg', cpuEvo)}
           <div class="fighter-info">
-            <div class="fighter-name">${cpu.template.name}</div>
+            <div class="fighter-name">${cpuName} <span class="level-indicator">Lv.${cpu.level}</span></div>
             ${renderHpBar(cpu)}
             ${renderStatus(cpu)}
           </div>
@@ -464,12 +671,12 @@ function renderSwitchPrompt(): string {
 
 function effectLabel(type: string): string {
   const map: Record<string, string> = {
-    bleed: '🩸', confuse: '😵', freeze: '🧊', caffeinated: '⚡', brainrot: '����',
+    bleed: '🩸', confuse: '😵', freeze: '🧊', caffeinated: '⚡', brainrot: '🧠',
   };
   return map[type] || '';
 }
 
-// ── Battle Execution ───────��────────────────────────────────
+// ── Battle Execution ────────────────────────────────────────
 
 async function executeTurn(playerMoveIdx: number) {
   const b = state.battle!;
@@ -478,7 +685,10 @@ async function executeTurn(playerMoveIdx: number) {
 
   const player = b.playerTeam[b.playerActive];
   const cpu = b.cpuTeam[b.cpuActive];
-  const cpuMoveIdx = cpuChooseMove(cpu, player);
+
+  // In endless mode, AI gets smarter at higher floors
+  const smartness = state.mode === 'endless' ? getEndlessSmartness(state.stats.endless.floor + 1) : 0.5;
+  const cpuMoveIdx = cpuChooseMove(cpu, player, smartness);
 
   const first = getFirstAttacker(player, cpu);
 
@@ -513,7 +723,7 @@ async function executeAttack(
   if (!attacker.isAlive || !defender.isAlive) return;
 
   const prefix = side === 'player' ? '' : 'Enemy ';
-  const name = attacker.template.name;
+  const name = getDisplayName(attacker.template.name, attacker.level);
   const move = attacker.template.moves[moveIdx];
 
   if (isFrozen(attacker)) {
@@ -566,9 +776,11 @@ function logMoveResult(
   side: 'player' | 'cpu'
 ) {
   const prefix = side === 'player' ? '' : 'Enemy ';
+  const attackerName = getDisplayName(attacker.template.name, attacker.level);
+  const defenderName = getDisplayName(defender.template.name, defender.level);
 
   if (result.hitSelf) {
-    b.log.push(`${prefix}${attacker.template.name} hurt itself in confusion! (-${result.selfDamage} HP)`);
+    b.log.push(`${prefix}${attackerName} hurt itself in confusion! (-${result.selfDamage} HP)`);
     return;
   }
 
@@ -580,11 +792,11 @@ function logMoveResult(
   }
 
   if (result.healed > 0) {
-    b.log.push(`${prefix}${attacker.template.name} restored ${result.healed} HP! 💚`);
+    b.log.push(`${prefix}${attackerName} restored ${result.healed} HP! 💚`);
   }
 
   if (result.selfDamage > 0 && !result.hitSelf) {
-    b.log.push(`${prefix}${attacker.template.name} took ${result.selfDamage} recoil damage!`);
+    b.log.push(`${prefix}${attackerName} took ${result.selfDamage} recoil damage!`);
   }
 
   if (result.statusApplied) {
@@ -593,13 +805,14 @@ function logMoveResult(
       caffeinated: 'got caffeinated! ⚡', brainrot: 'caught brainrot! 🧠',
     };
     const target = result.statusApplied.type === 'caffeinated' ? attacker : defender;
+    const targetName = target === attacker ? attackerName : defenderName;
     const tPrefix = target === attacker ? prefix : (side === 'player' ? 'Enemy ' : '');
-    b.log.push(`${tPrefix}${target.template.name} ${labels[result.statusApplied.type]}`);
+    b.log.push(`${tPrefix}${targetName} ${labels[result.statusApplied.type]}`);
   }
 
   if (!defender.isAlive) {
     const dPrefix = side === 'player' ? 'Enemy ' : '';
-    b.log.push(`${dPrefix}${defender.template.name} fainted! 💀`);
+    b.log.push(`${dPrefix}${defenderName} fainted! 💀`);
   }
 }
 
@@ -607,7 +820,7 @@ async function endOfTurnTick(b: BattleState, char: BattleCharacter, label: strin
   if (!char.isAlive) return;
   const { bleedDamage } = tickEndOfTurn(char);
   if (bleedDamage > 0) {
-    b.log.push(`${label} ${char.template.name} takes ${bleedDamage} bleed damage! 🩸`);
+    b.log.push(`${label} ${getDisplayName(char.template.name, char.level)} takes ${bleedDamage} bleed damage! 🩸`);
     render();
     await delay(700);
   }
@@ -649,40 +862,66 @@ async function checkFaintAndSwitch(b: BattleState): Promise<boolean> {
   return false;
 }
 
-// ── Game End Logic ───────��──────────────────────────────────
+// ── Game End Logic ──────────────────────────────────────────
 
 function handleGameEnd(won: boolean) {
   const s = state.stats;
-  if (won) {
-    s.wins++;
-    s.winStreak++;
-    if (s.winStreak > s.bestStreak) s.bestStreak = s.winStreak;
 
-    // Unlock characters for beating this arena
-    const unlocks = ARENA_UNLOCK_CHARS[state.arenaLevel] || [];
-    const newUnlocks: string[] = [];
-    for (const id of unlocks) {
-      if (!s.unlockedIds.includes(id)) {
-        s.unlockedIds.push(id);
-        newUnlocks.push(id);
-      }
+  // Award XP to all player team characters
+  const floor = s.endless.floor + 1;
+  const xpAmount = calculateXpReward(won, state.arenaLevel, floor, state.mode);
+  lastXpAwarded = xpAmount;
+  lastLevelUps = [];
+
+  for (const char of state.playerTeam) {
+    const { oldLevel, newLevel } = addXpToChar(char.id, xpAmount);
+    if (newLevel > oldLevel) {
+      lastLevelUps.push({ name: char.name, oldLevel, newLevel });
     }
-
-    if (state.arenaLevel > s.highestArena) {
-      s.highestArena = state.arenaLevel;
-    }
-
-    // Store new unlocks for result screen
-    (state as any)._newUnlocks = newUnlocks;
-  } else {
-    s.losses++;
-    s.winStreak = 0;
-    (state as any)._newUnlocks = [];
   }
+
+  if (state.mode === 'endless') {
+    if (won) {
+      s.endless.floor++;
+      s.endless.streak++;
+      if (s.endless.streak > s.endless.bestStreak) s.endless.bestStreak = s.endless.streak;
+      if (s.endless.floor > s.endless.bestFloor) s.endless.bestFloor = s.endless.floor;
+    } else {
+      s.endless.streak = 0;
+    }
+    s.endless.elo = calculateElo(s.endless.elo, floor, won);
+  }
+
+  if (state.mode === 'arena') {
+    if (won) {
+      s.wins++;
+      s.winStreak++;
+      if (s.winStreak > s.bestStreak) s.bestStreak = s.winStreak;
+
+      // Unlock characters for beating this arena
+      const unlocks = ARENA_UNLOCK_CHARS[state.arenaLevel] || [];
+      lastNewUnlocks = [];
+      for (const id of unlocks) {
+        if (!s.unlockedIds.includes(id)) {
+          s.unlockedIds.push(id);
+          lastNewUnlocks.push(id);
+        }
+      }
+
+      if (state.arenaLevel > s.highestArena) {
+        s.highestArena = state.arenaLevel;
+      }
+    } else {
+      s.losses++;
+      s.winStreak = 0;
+      lastNewUnlocks = [];
+    }
+  }
+
   saveStats(s);
 }
 
-// ── Result Screen ───────��───────────────────────────────��───
+// ── Result Screen ───────────────────────────────────────────
 
 function renderResult() {
   const won = state.battle?.winner === 'player';
@@ -690,19 +929,41 @@ function renderResult() {
   const lastAlive = won
     ? state.battle!.playerTeam.find(c => c.isAlive)
     : state.battle!.cpuTeam.find(c => c.isAlive);
-  const newUnlocks: string[] = (state as any)._newUnlocks || [];
-  const unlockedChars = newUnlocks.map(id => CHARACTERS.find(c => c.id === id)).filter(Boolean);
+  const unlockedChars = lastNewUnlocks.map(id => CHARACTERS.find(c => c.id === id)).filter(Boolean);
+  const lastAliveLevel = lastAlive ? lastAlive.level : 1;
+  const lastAliveEvo = getEvolutionStage(lastAliveLevel).cssClass;
+
+  const evoLabels: Record<number, string> = { 5: 'EX EVOLUTION!', 10: 'ULTRA EVOLUTION!', 15: 'OMEGA EVOLUTION!' };
 
   app.innerHTML = `
     <div class="result-screen">
       <div class="result-title ${won ? 'victory' : 'defeat'}">
         ${won ? 'VICTORY!' : 'DEFEAT...'}
       </div>
-      ${lastAlive ? renderPortrait(lastAlive.template, 'lg') : '<div style="font-size:4rem">💀</div>'}
+      ${lastAlive ? renderPortrait(lastAlive.template, 'lg', lastAliveEvo) : '<div style="font-size:4rem">💀</div>'}
       <p class="result-subtitle">${line}</p>
       ${lastAlive ? `<p class="result-catchphrase">"${lastAlive.template.catchphrase}"</p>` : ''}
 
-      ${state.stats.winStreak > 1 ? `
+      <div class="xp-reward-section">
+        <p class="xp-awarded">+${lastXpAwarded} XP to all fighters</p>
+        ${lastLevelUps.map(lu => `
+          <div class="level-up-notification animate-fade-in">
+            ⬆️ ${lu.name} reached Level ${lu.newLevel}!
+            ${evoLabels[lu.newLevel] ? `<br><span style="color:var(--accent-glow)">${evoLabels[lu.newLevel]}</span>` : ''}
+          </div>
+        `).join('')}
+      </div>
+
+      ${state.mode === 'endless' ? `
+        <div class="endless-result-stats">
+          <span>Floor ${state.stats.endless.floor}</span>
+          <span class="elo-display">ELO ${state.stats.endless.elo}</span>
+          ${state.stats.endless.streak > 1 ? `<span>🔥 ${state.stats.endless.streak} streak</span>` : ''}
+          <span>Best: F${state.stats.endless.bestFloor}</span>
+        </div>
+      ` : ''}
+
+      ${state.stats.winStreak > 1 && state.mode === 'arena' ? `
         <div class="streak-banner">🔥 ${state.stats.winStreak} WIN STREAK 🔥</div>
       ` : ''}
 
@@ -721,15 +982,23 @@ function renderResult() {
       ` : ''}
 
       <div class="result-buttons">
-        ${won && state.arenaLevel < 5 ? `
-          <button class="btn btn-large" id="btn-next">NEXT ARENA</button>
-        ` : ''}
-        <button class="btn ${won && state.arenaLevel < 5 ? 'btn-small' : 'btn-large'}" id="btn-menu">MAIN MENU</button>
-        <button class="btn btn-small" id="btn-rematch">REMATCH</button>
+        ${state.mode === 'arena' ? `
+          ${won && state.arenaLevel < 5 ? `
+            <button class="btn btn-large" id="btn-next">NEXT ARENA</button>
+          ` : ''}
+          <button class="btn ${won && state.arenaLevel < 5 ? 'btn-small' : 'btn-large'}" id="btn-menu">MAIN MENU</button>
+          <button class="btn btn-small" id="btn-rematch">REMATCH</button>
+        ` : `
+          ${won ? `<button class="btn btn-large" id="btn-next-floor">NEXT FLOOR</button>` : ''}
+          ${!won ? `<button class="btn btn-large" id="btn-retry-floor">RETRY FLOOR</button>` : ''}
+          <button class="btn btn-small" id="btn-menu">MAIN MENU</button>
+          <button class="btn btn-small" id="btn-reselect">CHANGE TEAM</button>
+        `}
       </div>
     </div>
   `;
 
+  // Arena buttons
   document.getElementById('btn-next')?.addEventListener('click', () => {
     state.arenaLevel++;
     state.screen = 'select';
@@ -737,17 +1006,46 @@ function renderResult() {
     render();
   });
 
+  document.getElementById('btn-rematch')?.addEventListener('click', () => {
+    const playerLevels = state.playerTeam.map(c => getCharLevel(c.id));
+    const { team, levels: cpuLevels } = generateCpuTeam(state.playerTeam, state.arenaLevel);
+    state.cpuTeam = team;
+    state.battle = initBattle(state.playerTeam, state.cpuTeam, playerLevels, cpuLevels);
+    state.screen = 'battle';
+    render();
+  });
+
+  // Endless buttons
+  document.getElementById('btn-next-floor')?.addEventListener('click', () => {
+    const playerLevels = state.playerTeam.map(c => getCharLevel(c.id));
+    const nextFloor = state.stats.endless.floor + 1;
+    const { team, levels: cpuLevels } = generateEndlessCpuTeam(state.playerTeam, nextFloor);
+    state.cpuTeam = team;
+    state.battle = initBattle(state.playerTeam, state.cpuTeam, playerLevels, cpuLevels);
+    state.screen = 'battle';
+    render();
+  });
+
+  document.getElementById('btn-retry-floor')?.addEventListener('click', () => {
+    const playerLevels = state.playerTeam.map(c => getCharLevel(c.id));
+    const retryFloor = state.stats.endless.floor + 1;
+    const { team, levels: cpuLevels } = generateEndlessCpuTeam(state.playerTeam, retryFloor);
+    state.cpuTeam = team;
+    state.battle = initBattle(state.playerTeam, state.cpuTeam, playerLevels, cpuLevels);
+    state.screen = 'battle';
+    render();
+  });
+
+  document.getElementById('btn-reselect')?.addEventListener('click', () => {
+    state.playerTeam = [];
+    state.screen = 'endless_select';
+    render();
+  });
+
   document.getElementById('btn-menu')!.addEventListener('click', () => {
     state.screen = 'title';
     state.playerTeam = [];
     state.arenaLevel = 1;
-    render();
-  });
-
-  document.getElementById('btn-rematch')!.addEventListener('click', () => {
-    state.cpuTeam = generateCpuTeam(state.playerTeam, state.arenaLevel);
-    state.battle = initBattle(state.playerTeam, state.cpuTeam);
-    state.screen = 'battle';
     render();
   });
 }

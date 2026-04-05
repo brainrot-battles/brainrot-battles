@@ -54,8 +54,30 @@ export interface PortraitConfig {
   img: string; // actual image path e.g. '/img/tralalero.png'
 }
 
+// ── XP / Leveling ───────────────────────────────────────────
+
+export interface CharacterProgress {
+  xp: number;
+  level: number;
+}
+
+export type EvolutionStage = 'base' | 'EX' | 'ULTRA' | 'OMEGA';
+
+// ── Endless Mode ────────────────────────────────────────────
+
+export interface EndlessState {
+  floor: number;
+  elo: number;
+  bestFloor: number;
+  streak: number;
+  bestStreak: number;
+}
+
+// ── Battle ──────────────────────────────────────────────────
+
 export interface BattleCharacter {
   template: CharacterTemplate;
+  level: number; // level used for this battle (scales stats)
   currentHp: number;
   maxHp: number;
   status: StatusEffect | null;
@@ -74,7 +96,7 @@ export interface BattleState {
   winner: 'player' | 'cpu' | null;
 }
 
-export type Screen = 'title' | 'select' | 'battle' | 'result';
+export type Screen = 'title' | 'select' | 'battle' | 'result' | 'endless_select';
 
 export interface PlayerStats {
   wins: number;
@@ -83,6 +105,8 @@ export interface PlayerStats {
   bestStreak: number;
   highestArena: number;
   unlockedIds: string[]; // character IDs unlocked
+  characterProgress: Record<string, CharacterProgress>; // keyed by character id
+  endless: EndlessState;
 }
 
 export interface GameState {
@@ -92,4 +116,5 @@ export interface GameState {
   battle: BattleState | null;
   arenaLevel: number;
   stats: PlayerStats;
+  mode: 'arena' | 'endless';
 }

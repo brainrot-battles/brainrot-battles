@@ -1,4 +1,4 @@
-import type { CharacterTemplate, ElementType } from './types';
+import type { CharacterTemplate, ElementType, EvolutionStage } from './types';
 
 // ── Type Effectiveness Chart ────────────────────────────────
 // 2.0 = super effective, 0.5 = not very effective, 1.0 = neutral
@@ -429,3 +429,78 @@ export const CHARACTERS: CharacterTemplate[] = [
 // ── Starter characters (always available) ───────────────────
 
 export const STARTER_IDS = CHARACTERS.filter(c => c.unlockArena === 0).map(c => c.id);
+
+// ── XP & Leveling ──────────────────────────────────────────
+
+// Cumulative XP required to reach each level (index = level)
+export const XP_THRESHOLDS: number[] = [
+  0,     // lvl 0 (unused)
+  0,     // lvl 1 (start)
+  100,   // lvl 2
+  250,   // lvl 3
+  500,   // lvl 4
+  850,   // lvl 5  → EX
+  1300,  // lvl 6
+  1850,  // lvl 7
+  2500,  // lvl 8
+  3300,  // lvl 9
+  4200,  // lvl 10 → ULTRA
+  5200,  // lvl 11
+  6400,  // lvl 12
+  7800,  // lvl 13
+  9400,  // lvl 14
+  11200, // lvl 15 → OMEGA
+  13200, // lvl 16
+  15500, // lvl 17
+  18000, // lvl 18
+  20800, // lvl 19
+  24000, // lvl 20 (soft cap)
+];
+
+export const MAX_LEVEL = 20;
+export const LEVEL_STAT_BONUS = 0.025; // +2.5% per level
+
+// Evolution milestones
+export interface EvolutionInfo {
+  stage: EvolutionStage;
+  level: number;
+  suffix: string;
+  cssClass: string;
+}
+
+export const EVOLUTION_STAGES: EvolutionInfo[] = [
+  { stage: 'base',  level: 1,  suffix: '',       cssClass: '' },
+  { stage: 'EX',    level: 5,  suffix: ' EX',    cssClass: 'evo-ex' },
+  { stage: 'ULTRA', level: 10, suffix: ' ULTRA',  cssClass: 'evo-ultra' },
+  { stage: 'OMEGA', level: 15, suffix: ' OMEGA',  cssClass: 'evo-omega' },
+];
+
+// XP rewards
+export const XP_WIN = 50;
+export const XP_LOSE = 20;
+export const XP_PER_ARENA = 5;  // bonus per arena level
+export const XP_PER_FLOOR = 3;  // bonus per endless floor
+
+// ELO constants
+export const ELO_START = 1000;
+export const ELO_K = 32;
+
+// ── XP Helper Functions ────────────────────────────────────
+
+export function levelFromXp(xp: number): number {
+  for (let i = XP_THRESHOLDS.length - 1; i >= 1; i--) {
+    if (xp >= XP_THRESHOLDS[i]) return i;
+  }
+  return 1;
+}
+
+export function getEvolutionStage(level: number): EvolutionInfo {
+  for (let i = EVOLUTION_STAGES.length - 1; i >= 0; i--) {
+    if (level >= EVOLUTION_STAGES[i].level) return EVOLUTION_STAGES[i];
+  }
+  return EVOLUTION_STAGES[0];
+}
+
+export function getDisplayName(baseName: string, level: number): string {
+  return baseName + getEvolutionStage(level).suffix;
+}

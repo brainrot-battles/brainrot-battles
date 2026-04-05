@@ -1,13 +1,24 @@
 import type { BattleCharacter, BattleState, CharacterTemplate, Move, StatusEffect } from './types';
-import { getEffectiveness, CHARACTERS } from './data';
+import {
+  getEffectiveness, CHARACTERS, LEVEL_STAT_BONUS, MAX_LEVEL,
+  XP_WIN, XP_LOSE, XP_PER_ARENA, XP_PER_FLOOR, ELO_K,
+} from './data';
+
+// ── Scaled Stats ───────────────────────────────────────────
+
+export function getScaledStat(base: number, level: number): number {
+  return Math.round(base * (1 + (level - 1) * LEVEL_STAT_BONUS));
+}
 
 // ── Create Battle Character from Template ───────────────────
 
-export function createBattleChar(template: CharacterTemplate): BattleCharacter {
+export function createBattleChar(template: CharacterTemplate, level: number = 1): BattleCharacter {
+  const scaledHp = getScaledStat(template.hp, level);
   return {
     template,
-    currentHp: template.hp,
-    maxHp: template.hp,
+    level,
+    currentHp: scaledHp,
+    maxHp: scaledHp,
     status: null,
     cooldowns: template.moves.map(() => 0),
     isAlive: true,
@@ -16,10 +27,15 @@ export function createBattleChar(template: CharacterTemplate): BattleCharacter {
 
 // ── Initialize Battle State ─────────────────────────────────
 
-export function initBattle(playerTeam: CharacterTemplate[], cpuTeam: CharacterTemplate[]): BattleState {
+export function initBattle(
+  playerTeam: CharacterTemplate[],
+  cpuTeam: CharacterTemplate[],
+  playerLevels: number[] = [1, 1, 1],
+  cpuLevels: number[] = [1, 1, 1],
+): BattleState {
   return {
-    playerTeam: playerTeam.map(createBattleChar),
-    cpuTeam: cpuTeam.map(createBattleChar),
+    playerTeam: playerTeam.map((t, i) => createBattleChar(t, playerLevels[i])),
+    cpuTeam: cpuTeam.map((t, i) => createBattleChar(t, cpuLevels[i])),
     playerActive: 0,
     cpuActive: 0,
     turn: 'player',
@@ -40,8 +56,8 @@ export function calculateDamage(
   if (move.power === 0) return { damage: 0, effectiveness: 1 };
 
   const effectiveness = getEffectiveness(move.type, defender.template.type);
-  const atkStat = attacker.template.atk;
-  const defStat = defender.template.def;
+  const atkStat = getScaledStat(attacker.template.atk, attacker.level);
+  const defStat = getScaledStat(defender.template.def, defender.level);
 
   // Base formula: (power * atk/def * effectiveness) with some randomness
   const base = (move.power * (atkStat / defStat)) * effectiveness;
@@ -83,7 +99,7 @@ export function applyMove(
 
   // Check confusion - 30% chance to hit self
   if (attacker.status?.type === 'confuse' && Math.random() < 0.3) {
-    const selfDmg = Math.round(attacker.template.atk * 0.5);
+    const selfDmg = Math.round(getScaledStat(attacker.template.atk, attacker.level) * 0.5);
     attacker.currentHp = Math.max(0, attacker.currentHp - selfDmg);
     result.hitSelf = true;
     result.selfDamage = selfDmg;
@@ -178,7 +194,7 @@ export function tickEndOfTurn(char: BattleCharacter): { bleedDamage: number } {
 
 // ── CPU AI ──────────────────────────────────────────────────
 
-export function cpuChooseMove(cpu: BattleCharacter, player: BattleCharacter): number {
+export function cpuChooseMove(cpu: BattleCharacter, player: BattleCharacter, smartness: number = 0.5): number {
   const available = cpu.template.moves
     .map((move, i) => ({ move, index: i }))
     .filter(({ index }) => cpu.cooldowns[index] === 0);
@@ -209,8 +225,9 @@ export function cpuChooseMove(cpu: BattleCharacter, player: BattleCharacter): nu
       score -= 30;
     }
 
-    // Small random factor
-    score += Math.random() * 10;
+    // Random factor scales inversely with smartness (smarter = less random)
+    const randomRange = 10 * (1 - smartness * 0.8); // 10 at 0, 2 at 1
+    score += Math.random() * randomRange;
 
     return { index, score };
   });
@@ -219,9 +236,12 @@ export function cpuChooseMove(cpu: BattleCharacter, player: BattleCharacter): nu
   return scored[0].index;
 }
 
-// ── CPU Team Generation ─────────────────────────────────────
+// ── CPU Team Generation (Arena Mode) ────────────────────────
 
-export function generateCpuTeam(playerTeam: CharacterTemplate[], arenaLevel: number): CharacterTemplate[] {
+export function generateCpuTeam(
+  playerTeam: CharacterTemplate[],
+  arenaLevel: number
+): { team: CharacterTemplate[]; levels: number[] } {
   const available = CHARACTERS.filter(c => !playerTeam.some(p => p.id === c.id));
 
   // Higher arena = more high-tier characters
@@ -250,7 +270,87 @@ export function generateCpuTeam(playerTeam: CharacterTemplate[], arenaLevel: num
     }
   }
 
-  return team;
+  // Arena CPU levels: modest scaling (1 at arena 1, up to 5 at arena 5)
+  const baseLevel = Math.min(5, arenaLevel);
+  const levels = team.map(() => baseLevel + Math.floor(Math.random() * 2));
+
+  return { team, levels };
+}
+
+// ── CPU Team Generation (Endless Mode) ──────────────────────
+
+export function generateEndlessCpuTeam(
+  playerTeam: CharacterTemplate[],
+  floor: number
+): { team: CharacterTemplate[]; levels: number[] } {
+  const weights: Record<string, number> = {
+    S: floor >= 20 ? 5 : floor >= 10 ? 3 : floor >= 6 ? 1 : 0,
+    A: floor >= 10 ? 4 : floor >= 5 ? 3 : 1,
+    B: floor <= 10 ? 3 : 1,
+    C: floor <= 5 ? 3 : floor <= 10 ? 1 : 0,
+  };
+
+  // Boss floors every 5: themed team
+  const isBoss = floor % 5 === 0 && floor > 0;
+
+  let pool = CHARACTERS.filter(c => !playerTeam.some(p => p.id === c.id));
+
+  if (isBoss && floor >= 20) {
+    // Late bosses: only S/A tier
+    const elitePool = pool.filter(c => c.tier === 'S' || c.tier === 'A');
+    if (elitePool.length >= 3) pool = elitePool;
+  }
+
+  const weighted = pool.flatMap(c => Array(weights[c.tier] || 1).fill(c));
+  const team: CharacterTemplate[] = [];
+  const tempWeighted = [...weighted];
+
+  while (team.length < 3 && tempWeighted.length > 0) {
+    const idx = Math.floor(Math.random() * tempWeighted.length);
+    const pick = tempWeighted[idx];
+    if (!team.some(t => t.id === pick.id)) {
+      team.push(pick);
+    }
+    for (let i = tempWeighted.length - 1; i >= 0; i--) {
+      if (tempWeighted[i].id === pick.id) tempWeighted.splice(i, 1);
+    }
+  }
+
+  // CPU levels scale with floor
+  const baseLevel = Math.min(MAX_LEVEL, 1 + Math.floor(floor * 0.6));
+  const levels = team.map(() => Math.min(MAX_LEVEL, baseLevel + Math.floor(Math.random() * 3)));
+
+  return { team, levels };
+}
+
+// ── XP Reward Calculation ───────────────────────────────────
+
+export function calculateXpReward(won: boolean, arenaLevel: number, floor: number, mode: 'arena' | 'endless'): number {
+  let xp = won ? XP_WIN : XP_LOSE;
+  if (mode === 'arena') {
+    xp += arenaLevel * XP_PER_ARENA;
+  } else {
+    xp += floor * XP_PER_FLOOR;
+  }
+  return xp;
+}
+
+// ── ELO Calculation ─────────────────────────────────────────
+
+export function calculateElo(currentElo: number, floor: number, won: boolean): number {
+  const floorRating = 1000 + floor * 40;
+  const expected = 1 / (1 + Math.pow(10, (floorRating - currentElo) / 400));
+  const score = won ? 1 : 0;
+  return Math.round(currentElo + ELO_K * (score - expected));
+}
+
+// ── Endless AI Smartness ────────────────────────────────────
+
+export function getEndlessSmartness(floor: number): number {
+  if (floor >= 20) return 0.95;
+  if (floor >= 10) return 0.7;
+  if (floor >= 5) return 0.5;
+  return 0.3;
 }
 
 // ── Check Frozen ────────────────────────────────────────────
@@ -278,8 +378,8 @@ export function getFirstAttacker(
   player: BattleCharacter,
   cpu: BattleCharacter
 ): 'player' | 'cpu' {
-  const pSpd = player.template.spd * (player.status?.type === 'caffeinated' ? 1.5 : 1);
-  const cSpd = cpu.template.spd * (cpu.status?.type === 'caffeinated' ? 1.5 : 1);
+  const pSpd = getScaledStat(player.template.spd, player.level) * (player.status?.type === 'caffeinated' ? 1.5 : 1);
+  const cSpd = getScaledStat(cpu.template.spd, cpu.level) * (cpu.status?.type === 'caffeinated' ? 1.5 : 1);
   if (pSpd === cSpd) return Math.random() < 0.5 ? 'player' : 'cpu';
   return pSpd > cSpd ? 'player' : 'cpu';
 }

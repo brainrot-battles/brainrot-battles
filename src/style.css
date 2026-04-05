@@ -808,6 +808,260 @@ body::after {
   transform: scale(1.05);
 }
 
+/* ── Evolution Effects ───────────────────────────────────── */
+.evo-wrapper {
+  position: relative;
+  display: inline-block;
+  border-radius: 14px;
+}
+
+/* EX: Pulsing glow border + conic-gradient aura */
+.evo-ex {
+  animation: evoExPulse 2s ease-in-out infinite;
+}
+.evo-ex::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 14px;
+  background: conic-gradient(from 0deg, #6c5ce7, #a29bfe, #6c5ce7);
+  z-index: -1;
+  animation: evoExRotate 3s linear infinite;
+  opacity: 0.6;
+}
+
+@keyframes evoExPulse {
+  0%, 100% { filter: drop-shadow(0 0 6px rgba(108, 92, 231, 0.4)); }
+  50% { filter: drop-shadow(0 0 16px rgba(108, 92, 231, 0.8)) drop-shadow(0 0 30px rgba(162, 155, 254, 0.3)); }
+}
+
+@keyframes evoExRotate {
+  to { transform: rotate(360deg); }
+}
+
+/* ULTRA: Holographic shimmer + rainbow border */
+.evo-ultra {
+  animation: evoUltraShimmer 3s ease-in-out infinite;
+}
+.evo-ultra::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 0, 0, 0.12),
+    rgba(255, 165, 0, 0.12),
+    rgba(255, 255, 0, 0.12),
+    rgba(0, 255, 0, 0.12),
+    rgba(0, 0, 255, 0.12),
+    rgba(128, 0, 255, 0.12)
+  );
+  background-size: 400% 400%;
+  animation: evoUltraRainbow 4s linear infinite;
+  z-index: 3;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+}
+.evo-ultra::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 16px;
+  background: conic-gradient(from 0deg, #ff4757, #ffa502, #2ed573, #3742fa, #6c5ce7, #ff4757);
+  z-index: -1;
+  animation: evoExRotate 2s linear infinite;
+  opacity: 0.7;
+}
+
+@keyframes evoUltraShimmer {
+  0%, 100% { filter: drop-shadow(0 0 10px rgba(255, 71, 87, 0.5)) drop-shadow(0 0 20px rgba(108, 92, 231, 0.3)); }
+  33% { filter: drop-shadow(0 0 10px rgba(46, 213, 115, 0.5)) drop-shadow(0 0 20px rgba(55, 66, 250, 0.3)); }
+  66% { filter: drop-shadow(0 0 10px rgba(255, 165, 2, 0.5)) drop-shadow(0 0 20px rgba(255, 71, 87, 0.3)); }
+}
+
+@keyframes evoUltraRainbow {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 100% 100%; }
+}
+
+/* OMEGA: Maximum glow + sparkle + hue-rotation */
+.evo-omega {
+  animation: evoOmegaPulse 2s ease-in-out infinite;
+}
+.evo-omega::before {
+  content: '✦';
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  color: rgba(255, 255, 255, 0.25);
+  animation: evoOmegaSparkle 1.5s ease-in-out infinite;
+  z-index: 4;
+  pointer-events: none;
+  text-shadow: 0 0 10px white;
+}
+.evo-omega::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: 18px;
+  background: conic-gradient(from 0deg, #ff4757, #ffa502, #fff, #2ed573, #3742fa, #a29bfe, #ff4757);
+  z-index: -1;
+  animation: evoExRotate 1.5s linear infinite;
+  opacity: 0.85;
+}
+
+@keyframes evoOmegaPulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 15px rgba(255, 255, 255, 0.6)) drop-shadow(0 0 30px rgba(162, 155, 254, 0.4)) brightness(1.1);
+  }
+  50% {
+    filter: drop-shadow(0 0 25px rgba(255, 255, 255, 0.8)) drop-shadow(0 0 50px rgba(255, 165, 2, 0.4)) brightness(1.15) hue-rotate(15deg);
+  }
+}
+
+@keyframes evoOmegaSparkle {
+  0%, 100% { opacity: 0.2; transform: scale(0.8) rotate(0deg); }
+  50% { opacity: 0.6; transform: scale(1.1) rotate(180deg); }
+}
+
+/* ── Level Badge ──────────────────────────────────────────── */
+.level-badge {
+  font-family: var(--font-pixel);
+  font-size: 0.4rem;
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+  background: rgba(108, 92, 231, 0.3);
+  color: var(--accent-glow);
+  border: 1px solid var(--accent);
+}
+
+.level-indicator {
+  font-size: 0.45rem;
+  color: var(--accent-glow);
+  opacity: 0.8;
+}
+
+/* ── XP Bar (mini, on character cards) ────────────────────── */
+.xp-bar-mini {
+  width: 100%;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  margin-top: 0.2rem;
+  overflow: hidden;
+}
+
+.xp-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.xp-bar-fill.xp-max {
+  background: linear-gradient(90deg, var(--accent), var(--yellow), var(--accent));
+  background-size: 200% 100%;
+  animation: xpMaxShimmer 2s linear infinite;
+}
+
+@keyframes xpMaxShimmer {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 200% 0%; }
+}
+
+/* ── XP Reward Section (result screen) ────────────────────── */
+.xp-reward-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+
+.xp-awarded {
+  font-family: var(--font-pixel);
+  font-size: 0.55rem;
+  color: var(--accent-glow);
+}
+
+.level-up-notification {
+  font-family: var(--font-pixel);
+  font-size: 0.5rem;
+  color: var(--yellow);
+  text-shadow: 0 0 8px var(--yellow);
+  padding: 0.4rem 1rem;
+  border: 1px solid var(--yellow);
+  border-radius: 6px;
+  background: rgba(255, 165, 2, 0.1);
+  text-align: center;
+  line-height: 1.6;
+}
+
+/* ── Endless Mode UI ──────────────────────────────────────── */
+.endless-header {
+  text-align: center;
+  padding: 0.6rem 1rem;
+  border: 2px solid var(--yellow);
+  border-radius: 8px;
+  background: rgba(255, 165, 2, 0.05);
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  font-family: var(--font-pixel);
+  font-size: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.endless-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.endless-stat-label {
+  color: var(--text-dim);
+  font-size: 0.35rem;
+  text-transform: uppercase;
+}
+
+.endless-stat-value {
+  color: var(--text-bright);
+  font-size: 0.6rem;
+}
+
+.elo-display {
+  color: var(--yellow);
+  text-shadow: 0 0 6px rgba(255, 165, 2, 0.4);
+}
+
+.endless-result-stats {
+  display: flex;
+  gap: 1.2rem;
+  justify-content: center;
+  font-family: var(--font-pixel);
+  font-size: 0.5rem;
+  color: var(--text-dim);
+  margin: 0.5rem 0;
+}
+
+.endless-result-stats .elo-display {
+  font-size: 0.5rem;
+}
+
+/* ── Title Buttons ────────────────────────────────────────── */
+.title-buttons {
+  display: flex;
+  gap: 0.8rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
 /* ── Responsive ──────────────────────────────────────────── */
 @media (max-width: 600px) {
   .character-grid {
