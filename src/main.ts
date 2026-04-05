@@ -247,7 +247,7 @@ function showAccountModal() {
           <p style="color:var(--green);font-size:0.7rem">${t('account.synced')}</p>
         </div>
         <div style="display:flex;gap:0.5rem;margin-top:0.8rem;justify-content:center;flex-wrap:wrap">
-          ${username ? `<button class="btn btn-small" id="btn-change-username" style="border-color:var(--yellow);color:var(--yellow)">✏️ ${t('username.change')}</button>` : ''}
+          <button class="btn btn-small" id="btn-change-username" style="border-color:var(--yellow);color:var(--yellow)">✏️ ${username ? t('username.change') : t('username.title')}</button>
           <button class="btn btn-small" id="btn-logout" style="border-color:var(--red);color:var(--red)">${t('account.logout')}</button>
           <button class="btn btn-small" id="btn-close-account">${t('account.close')}</button>
         </div>
@@ -1716,7 +1716,13 @@ function renderResult() {
 
 // Render immediately, then re-render once Firebase Auth is ready
 render();
-waitForAuth().then(() => {
-  loadProfile().catch(() => {});
-  render();
+waitForAuth().then(async () => {
+  if (isLoggedIn()) {
+    await loadProfile().catch(() => {});
+    render();
+    // Prompt username if logged in but no username set
+    if (!getCachedUsername()) {
+      showUsernameModal(() => render());
+    }
+  }
 });
