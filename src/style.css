@@ -1468,3 +1468,134 @@ body::after {
   color: var(--text);
   margin-bottom: 1rem;
 }
+
+/* ── Username Status ────────────────────────────── */
+
+.username-status {
+  font-size: 0.7rem;
+  min-height: 1.2em;
+  margin-bottom: 0.5rem;
+  color: var(--text-dim);
+}
+
+.username-status-ok {
+  color: var(--green, #44ff44);
+}
+
+.username-status-error {
+  color: var(--red, #ff4444);
+}
+
+/* ── Leaderboard ────────────────────────────────── */
+
+.leaderboard-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+.leaderboard-modal {
+  background: var(--bg-card);
+  border: 2px solid var(--accent-glow);
+  border-radius: 12px;
+  padding: 1.2rem;
+  max-width: 480px;
+  width: 92%;
+  max-height: 85vh;
+  overflow-y: auto;
+  text-align: center;
+}
+
+.leaderboard-tabs {
+  display: flex;
+  gap: 0.3rem;
+  justify-content: center;
+  margin-bottom: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.leaderboard-tab {
+  font-family: var(--font-pixel);
+  font-size: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.leaderboard-tab:hover {
+  border-color: var(--text);
+  color: var(--text);
+}
+
+.leaderboard-tab.active {
+  border-color: var(--accent-glow);
+  color: var(--accent-glow);
+  background: rgba(0, 255, 255, 0.05);
+}
+
+.leaderboard-list {
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.leaderboard-row {
+  display: flex;
+  align-items: center;
+  padding: 0.35rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  color: var(--text);
+}
+
+.leaderboard-row:nth-child(odd) {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.leaderboard-row.is-you {
+  background: rgba(0, 255, 255, 0.08);
+  border: 1px solid var(--accent-glow);
+  color: var(--text-bright);
+}
+
+.lb-rank {
+  width: 2.5rem;
+  text-align: right;
+  margin-right: 0.5rem;
+  font-family: var(--font-pixel);
+  font-size: 0.5rem;
+  color: var(--text-dim);
+}
+
+.leaderboard-row.is-you .lb-rank {
+  color: var(--accent-glow);
+}
+
+.lb-name {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-value {
+  font-family: var(--font-pixel);
+  font-size: 0.5rem;
+  color: var(--yellow, #ffff44);
+  margin-left: 0.5rem;
+}
+
+.leaderboard-separator {
+  height: 1px;
+  background: var(--border);
+  margin: 0.5rem 0;
+}

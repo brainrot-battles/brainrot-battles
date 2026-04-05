@@ -27,7 +27,10 @@ import { t, tDesc, getLang, setLang, randomVictoryLine, randomDefeatLine, random
 import {
   loginWithGoogle, loginWithEmail, registerWithEmail, logout,
   loadCloudSave, saveToCloud, isLoggedIn, getUserDisplayName, waitForAuth,
+  loadProfile, syncProfile, checkUsernameAvailable, claimUsername,
+  getCachedUsername, fetchLeaderboard, getUser,
 } from './firebase';
+import type { LeaderboardCategory } from './types';
 
 // ── Persistence ─────────────────────────────────────────────
 
@@ -57,9 +60,10 @@ function loadStats(): PlayerStats {
 
 function saveStats(stats: PlayerStats) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(stats));
-  // Sync to cloud if logged in (fire-and-forget)
+  // Sync to cloud + public profile if logged in (fire-and-forget)
   if (isLoggedIn()) {
     saveToCloud(stats).catch(() => {});
+    syncProfile(stats).catch(() => {});
   }
 }
 
@@ -232,7 +236,8 @@ function showAccountModal() {
   overlay.className = 'account-overlay';
 
   if (isLoggedIn()) {
-    // Logged-in view: show status + logout
+    const username = getCachedUsername();
+    // Logged-in view: show status + logout + username change
     overlay.innerHTML = `
       <div class="account-modal">
         <h3 style="font-family:var(--font-pixel);font-size:0.7rem;color:var(--accent-glow);margin-bottom:0.8rem">${t('account.title')}</h3>
@@ -241,12 +246,17 @@ function showAccountModal() {
           <p style="color:var(--text-bright);font-size:0.9rem;margin:0.3rem 0"><strong>${getUserDisplayName()}</strong></p>
           <p style="color:var(--green);font-size:0.7rem">${t('account.synced')}</p>
         </div>
-        <div style="display:flex;gap:0.5rem;margin-top:0.8rem;justify-content:center">
+        <div style="display:flex;gap:0.5rem;margin-top:0.8rem;justify-content:center;flex-wrap:wrap">
+          ${username ? `<button class="btn btn-small" id="btn-change-username" style="border-color:var(--yellow);color:var(--yellow)">✏️ ${t('username.change')}</button>` : ''}
           <button class="btn btn-small" id="btn-logout" style="border-color:var(--red);color:var(--red)">${t('account.logout')}</button>
           <button class="btn btn-small" id="btn-close-account">${t('account.close')}</button>
         </div>
       </div>
     `;
+    overlay.querySelector('#btn-change-username')?.addEventListener('click', () => {
+      overlay.remove();
+      showUsernameModal(() => render(), username || undefined);
+    });
     overlay.querySelector('#btn-logout')?.addEventListener('click', async () => {
       await logout();
       overlay.remove();
@@ -340,25 +350,243 @@ async function handlePostLogin(overlay: HTMLElement) {
         </div>
       </div>
     `;
-    overlay.querySelector('#btn-use-cloud')?.addEventListener('click', () => {
+    overlay.querySelector('#btn-use-cloud')?.addEventListener('click', async () => {
       // Load cloud save into local state
       state.stats = cloudSave;
       saveStats(state.stats);
       overlay.remove();
+      await promptUsernameIfNeeded();
       render();
     });
     overlay.querySelector('#btn-use-local')?.addEventListener('click', async () => {
       // Upload local save to cloud
       await saveToCloud(state.stats);
       overlay.remove();
+      await promptUsernameIfNeeded();
       render();
     });
   } else {
     // No cloud save — upload local save
     await saveToCloud(state.stats);
     overlay.remove();
+    await promptUsernameIfNeeded();
     render();
   }
+}
+
+async function promptUsernameIfNeeded() {
+  const profile = await loadProfile();
+  if (!profile || !profile.username) {
+    await new Promise<void>(resolve => showUsernameModal(resolve));
+  }
+}
+
+// ── Username Modal ─────────────────────────────────────────
+
+function showUsernameModal(onComplete?: () => void, currentName?: string) {
+  const existing = document.querySelector('.account-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'account-overlay';
+
+  const isChange = !!currentName;
+  overlay.innerHTML = `
+    <div class="account-modal">
+      <h3 style="font-family:var(--font-pixel);font-size:0.7rem;color:var(--accent-glow);margin-bottom:0.8rem">${t('username.title')}</h3>
+      <input type="text" id="username-input" placeholder="${t('username.placeholder')}" class="account-input" maxlength="16" value="${currentName || ''}" autocomplete="off" />
+      <div class="username-status" id="username-status"></div>
+      <div class="account-error" id="username-error" style="display:none"></div>
+      <button class="btn btn-small" id="btn-username-confirm" style="width:100%;border-color:var(--green);color:var(--green);opacity:0.4" disabled>${t('username.confirm')}</button>
+    </div>
+  `;
+
+  app.appendChild(overlay);
+
+  const input = overlay.querySelector('#username-input') as HTMLInputElement;
+  const status = overlay.querySelector('#username-status') as HTMLElement;
+  const confirmBtn = overlay.querySelector('#btn-username-confirm') as HTMLButtonElement;
+  const errorEl = overlay.querySelector('#username-error') as HTMLElement;
+
+  const USERNAME_RE = /^[a-zA-Z0-9_-]{3,16}$/;
+  let debounceTimer: number | null = null;
+  let lastChecked = '';
+  let isAvailable = false;
+
+  input.addEventListener('input', () => {
+    const val = input.value.trim();
+    confirmBtn.disabled = true;
+    confirmBtn.style.opacity = '0.4';
+    isAvailable = false;
+    errorEl.style.display = 'none';
+
+    if (!val || val.length < 3) {
+      status.textContent = '';
+      status.className = 'username-status';
+      return;
+    }
+    if (!USERNAME_RE.test(val)) {
+      status.textContent = t('username.invalid');
+      status.className = 'username-status username-status-error';
+      return;
+    }
+
+    status.textContent = t('username.checking');
+    status.className = 'username-status';
+
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = window.setTimeout(async () => {
+      if (val === lastChecked) return;
+      lastChecked = val;
+      try {
+        const result = await checkUsernameAvailable(val);
+        // Only update if input hasn't changed
+        if (input.value.trim() !== val) return;
+        if (result === 'available') {
+          status.textContent = '✓ ' + t('username.available');
+          status.className = 'username-status username-status-ok';
+          isAvailable = true;
+          confirmBtn.disabled = false;
+          confirmBtn.style.opacity = '1';
+        } else if (result === 'own') {
+          status.textContent = '✓ ' + t('username.own');
+          status.className = 'username-status username-status-ok';
+          isAvailable = true;
+          confirmBtn.disabled = false;
+          confirmBtn.style.opacity = '1';
+        } else {
+          status.textContent = '✗ ' + t('username.taken');
+          status.className = 'username-status username-status-error';
+        }
+      } catch {
+        status.textContent = '';
+      }
+    }, 400);
+  });
+
+  confirmBtn.addEventListener('click', async () => {
+    if (!isAvailable) return;
+    const val = input.value.trim();
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = '...';
+    try {
+      await claimUsername(val, currentName || undefined);
+      // Sync current stats to profile
+      syncProfile(state.stats).catch(() => {});
+      overlay.remove();
+      if (onComplete) onComplete();
+      render();
+    } catch (e: any) {
+      errorEl.textContent = t('username.error_race');
+      errorEl.style.display = 'block';
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = t('username.confirm');
+      isAvailable = false;
+      status.textContent = '✗ ' + t('username.taken');
+      status.className = 'username-status username-status-error';
+    }
+  });
+
+  // Focus the input
+  setTimeout(() => input.focus(), 100);
+}
+
+// ── Leaderboard Overlay ────────────────────────────────────
+
+const leaderboardCache: Partial<Record<LeaderboardCategory, any[]>> = {};
+
+function showLeaderboardOverlay() {
+  const existing = document.querySelector('.leaderboard-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'leaderboard-overlay';
+
+  const categories: { key: LeaderboardCategory; label: string; field: string }[] = [
+    { key: 'wins', label: t('leaderboard.tab_wins'), field: 'wins' },
+    { key: 'bestStreak', label: t('leaderboard.tab_streak'), field: 'bestStreak' },
+    { key: 'endlessBestFloor', label: t('leaderboard.tab_floor'), field: 'endlessBestFloor' },
+    { key: 'endlessElo', label: t('leaderboard.tab_elo'), field: 'endlessElo' },
+  ];
+
+  overlay.innerHTML = `
+    <div class="leaderboard-modal">
+      <h3 style="font-family:var(--font-pixel);font-size:0.7rem;color:var(--accent-glow);margin-bottom:0.8rem">🏆 ${t('leaderboard.title')}</h3>
+      <div class="leaderboard-tabs">
+        ${categories.map((c, i) => `<button class="leaderboard-tab${i === 0 ? ' active' : ''}" data-cat="${c.key}">${c.label}</button>`).join('')}
+      </div>
+      <div class="leaderboard-list" id="leaderboard-list">
+        <p style="text-align:center;color:var(--text-dim);font-size:0.7rem;padding:1rem">${t('leaderboard.loading')}</p>
+      </div>
+      <button class="btn btn-small" id="btn-close-leaderboard" style="margin-top:0.5rem;opacity:0.5">${t('leaderboard.close')}</button>
+    </div>
+  `;
+
+  app.appendChild(overlay);
+
+  const listEl = overlay.querySelector('#leaderboard-list') as HTMLElement;
+  const currentUid = getUser()?.uid;
+
+  async function loadCategory(cat: LeaderboardCategory) {
+    listEl.innerHTML = `<p style="text-align:center;color:var(--text-dim);font-size:0.7rem;padding:1rem">${t('leaderboard.loading')}</p>`;
+    try {
+      if (!leaderboardCache[cat]) {
+        leaderboardCache[cat] = await fetchLeaderboard(cat);
+      }
+      const entries = leaderboardCache[cat]!;
+      if (entries.length === 0) {
+        listEl.innerHTML = `<p style="text-align:center;color:var(--text-dim);font-size:0.7rem;padding:1rem">${t('leaderboard.empty')}</p>`;
+        return;
+      }
+
+      const fieldMap: Record<LeaderboardCategory, (e: any) => string> = {
+        wins: e => `${e.wins}W / ${e.losses}L`,
+        bestStreak: e => `${e.bestStreak}`,
+        endlessBestFloor: e => `F${e.endlessBestFloor}`,
+        endlessElo: e => `${e.endlessElo}`,
+      };
+
+      let userFound = false;
+      let html = entries.map((e: any) => {
+        const isYou = e.uid === currentUid;
+        if (isYou) userFound = true;
+        return `<div class="leaderboard-row${isYou ? ' is-you' : ''}">
+          <span class="lb-rank">#${e.rank}</span>
+          <span class="lb-name">${e.username}${isYou ? ' ★' : ''}</span>
+          <span class="lb-value">${fieldMap[cat](e)}</span>
+        </div>`;
+      }).join('');
+
+      if (!userFound && currentUid) {
+        html += `<div class="leaderboard-separator"></div>
+          <div class="leaderboard-row is-you">
+            <span class="lb-rank">—</span>
+            <span class="lb-name">${getUserDisplayName()} ★</span>
+            <span class="lb-value">${t('leaderboard.not_ranked')}</span>
+          </div>`;
+      }
+
+      listEl.innerHTML = html;
+    } catch {
+      listEl.innerHTML = `<p style="text-align:center;color:var(--text-dim);font-size:0.7rem;padding:1rem">Error loading leaderboard</p>`;
+    }
+  }
+
+  // Tab switching
+  overlay.querySelectorAll('.leaderboard-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      overlay.querySelectorAll('.leaderboard-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      loadCategory((tab as HTMLElement).dataset.cat as LeaderboardCategory);
+    });
+  });
+
+  // Close
+  overlay.querySelector('#btn-close-leaderboard')?.addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+  // Load first tab
+  loadCategory('wins');
 }
 
 // ── Floating Damage Number ──────────────────────────────────
@@ -441,6 +669,7 @@ function renderTitle() {
       ` : ''}
       <div style="display:flex;gap:0.5rem;justify-content:center;flex-wrap:wrap">
         <button class="btn btn-small" id="btn-account" style="border-color:var(--green);color:var(--green)">${isLoggedIn() ? '☁️' : '👤'} ${t('account.button')}</button>
+        ${isLoggedIn() ? `<button class="btn btn-small" id="btn-leaderboard" style="border-color:var(--yellow);color:var(--yellow)">🏆 ${t('leaderboard.button')}</button>` : ''}
         ${s.wins > 0 ? `<button class="btn btn-small" id="btn-reset" style="opacity:0.5">${t('title.reset')}</button>` : ''}
         <button class="btn btn-small" id="btn-help" style="opacity:0.5">${t('help.button')}</button>
       </div>
@@ -476,6 +705,10 @@ function renderTitle() {
 
   document.getElementById('btn-account')?.addEventListener('click', () => {
     showAccountModal();
+  });
+
+  document.getElementById('btn-leaderboard')?.addEventListener('click', () => {
+    showLeaderboardOverlay();
   });
 
   setupLangToggle();

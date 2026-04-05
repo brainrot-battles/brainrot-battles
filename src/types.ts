@@ -134,6 +134,27 @@ export interface PlayerStats {
   unlockedItems: string[]; // item IDs unlocked
 }
 
+// ── Profiles & Leaderboard ─────────────────────────────────
+
+export interface UserProfile {
+  username: string;
+  usernameLower: string;
+  wins: number;
+  losses: number;
+  bestStreak: number;
+  highestArena: number;
+  endlessBestFloor: number;
+  endlessElo: number;
+  updatedAt: any; // Firestore Timestamp
+}
+
+export interface LeaderboardEntry extends UserProfile {
+  rank: number;
+  uid: string;
+}
+
+export type LeaderboardCategory = 'wins' | 'bestStreak' | 'endlessBestFloor' | 'endlessElo';
+
 export interface GameState {
   screen: Screen;
   playerTeam: CharacterTemplate[];

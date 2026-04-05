@@ -129,6 +129,31 @@ const strings: Record<Lang, Record<string, string>> = {
     'account.cloud_exists': 'Cloud save found! Load cloud save or keep local progress?',
     'account.btn_cloud': 'LOAD CLOUD',
     'account.btn_local': 'KEEP LOCAL',
+
+    // Username
+    'username.title': 'CHOOSE USERNAME',
+    'username.placeholder': 'Enter username...',
+    'username.available': 'Available!',
+    'username.taken': 'Already taken',
+    'username.own': 'Your current username',
+    'username.invalid': '3-16 chars: letters, numbers, _ and -',
+    'username.confirm': 'CONFIRM',
+    'username.change': 'CHANGE',
+    'username.error_race': 'Username just taken, try another!',
+    'username.checking': 'Checking...',
+
+    // Leaderboard
+    'leaderboard.button': 'LEADERBOARD',
+    'leaderboard.title': 'LEADERBOARD',
+    'leaderboard.tab_wins': 'WINS',
+    'leaderboard.tab_streak': 'STREAK',
+    'leaderboard.tab_floor': 'FLOOR',
+    'leaderboard.tab_elo': 'ELO',
+    'leaderboard.you': '(You)',
+    'leaderboard.not_ranked': 'Not in top 50',
+    'leaderboard.close': 'CLOSE',
+    'leaderboard.empty': 'No entries yet — be the first!',
+    'leaderboard.loading': 'Loading...',
   },
 
   de: {
@@ -249,6 +274,31 @@ const strings: Record<Lang, Record<string, string>> = {
     'account.cloud_exists': 'Cloud-Spielstand gefunden! Cloud laden oder lokalen Fortschritt behalten?',
     'account.btn_cloud': 'CLOUD LADEN',
     'account.btn_local': 'LOKAL BEHALTEN',
+
+    // Username
+    'username.title': 'BENUTZERNAME WÄHLEN',
+    'username.placeholder': 'Benutzername eingeben...',
+    'username.available': 'Verfügbar!',
+    'username.taken': 'Bereits vergeben',
+    'username.own': 'Dein aktueller Name',
+    'username.invalid': '3-16 Zeichen: Buchstaben, Zahlen, _ und -',
+    'username.confirm': 'BESTÄTIGEN',
+    'username.change': 'ÄNDERN',
+    'username.error_race': 'Gerade vergeben, probier einen anderen!',
+    'username.checking': 'Prüfe...',
+
+    // Leaderboard
+    'leaderboard.button': 'BESTENLISTE',
+    'leaderboard.title': 'BESTENLISTE',
+    'leaderboard.tab_wins': 'SIEGE',
+    'leaderboard.tab_streak': 'SERIE',
+    'leaderboard.tab_floor': 'ETAGE',
+    'leaderboard.tab_elo': 'ELO',
+    'leaderboard.you': '(Du)',
+    'leaderboard.not_ranked': 'Nicht in Top 50',
+    'leaderboard.close': 'SCHLIESSEN',
+    'leaderboard.empty': 'Noch keine Einträge — sei der Erste!',
+    'leaderboard.loading': 'Lädt...',
   },
 };
 
