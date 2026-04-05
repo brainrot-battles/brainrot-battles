@@ -107,6 +107,18 @@ let lastNewItemUnlocks: string[] = [];
 
 const app = document.getElementById('app')!;
 
+// ── Analytics ──────────────────────────────────────────────
+
+declare function goatcounter_count(vars: { path: string; title?: string; event?: boolean }): void;
+
+function trackEvent(name: string) {
+  try {
+    if (typeof goatcounter_count === 'function') {
+      goatcounter_count({ path: `event/${name}`, title: name, event: true });
+    }
+  } catch { /* analytics should never break the game */ }
+}
+
 // ── Helpers ─────────────────────────────────────────────────
 
 function randomFrom<T>(arr: T[]): T {
@@ -437,6 +449,7 @@ function renderSelect() {
       state.cpuTeam = team;
       state.battle = initBattle(state.playerTeam, state.cpuTeam, playerLevels, cpuLevels, playerItemArray, cpuItemArray);
       state.screen = 'battle';
+      trackEvent(`arena-start-lv${state.arenaLevel}`);
       render();
     }
   });
@@ -542,6 +555,7 @@ function renderEndlessSelect() {
       state.cpuTeam = team;
       state.battle = initBattle(state.playerTeam, state.cpuTeam, playerLevels, cpuLevels, playerItemArray, cpuItemArray);
       state.screen = 'battle';
+      trackEvent(`endless-start-f${nextFloor}`);
       render();
     }
   });
@@ -1024,6 +1038,12 @@ async function checkFaintAndSwitch(b: BattleState): Promise<boolean> {
 
 function handleGameEnd(won: boolean) {
   const s = state.stats;
+
+  if (state.mode === 'arena') {
+    trackEvent(`arena-${won ? 'win' : 'loss'}-lv${state.arenaLevel}`);
+  } else {
+    trackEvent(`endless-${won ? 'win' : 'loss'}-f${s.endless.floor + 1}`);
+  }
 
   // Award XP to all player team characters
   const floor = s.endless.floor + 1;
