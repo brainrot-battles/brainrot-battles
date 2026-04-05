@@ -23,6 +23,7 @@ import {
   cpuEquipItems,
 } from './engine';
 import type { MoveResult } from './engine';
+import { t, tDesc, getLang, setLang, randomVictoryLine, randomDefeatLine, randomIntroLine, getHelpHTML } from './i18n';
 
 // ── Persistence ─────────────────────────────────────────────
 
@@ -121,10 +122,6 @@ function trackEvent(name: string) {
 
 // ── Helpers ─────────────────────────────────────────────────
 
-function randomFrom<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -172,33 +169,49 @@ function renderPortrait(
   return `<div class="evo-wrapper ${evolutionClass}">${portraitHtml}</div>`;
 }
 
-// ── Sarcastic Lines ─────────────────────────────────────────
+// ── Language Toggle ─────────────────────────────────────────
 
-const VICTORY_LINES = [
-  "You won. Your dopamine receptors are thrilled. Are you proud?",
-  "Congratulations, you defeated a CPU. The machines aren't scared yet.",
-  "Victory! Your screen time was totally worth it.",
-  "You did it! Now close this tab and go outside. Just kidding.",
-  "Winner winner, brainrot dinner.",
-  "The algorithm approves of your combat skills.",
-];
+function renderLangToggle(): string {
+  return `
+    <div class="lang-toggle">
+      <button class="lang-btn ${getLang() === 'en' ? 'active' : ''}" data-lang="en">EN</button>
+      <button class="lang-btn ${getLang() === 'de' ? 'active' : ''}" data-lang="de">DE</button>
+    </div>
+  `;
+}
 
-const DEFEAT_LINES = [
-  "You lost to an AI playing fictional meme creatures. Rock bottom.",
-  "Defeat. Even Frigo Camelo would be disappointed.",
-  "The brainrot consumed you. There is no cure.",
-  "L + ratio + you lost to Italian meme animals.",
-  "Your dopamine crashed harder than your team.",
-  "Maybe try touching grass? It's super effective.",
-];
+function setupLangToggle() {
+  app.querySelectorAll('[data-lang]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const lang = (btn as HTMLElement).dataset.lang as 'en' | 'de';
+      setLang(lang);
+      render();
+    });
+  });
+}
 
-const INTRO_LINES = [
-  "Your brain cells called. They want a refund.",
-  "Warning: This game has zero educational value.",
-  "Surgeon General's Warning: Pure brainrot ahead.",
-  "The memes have evolved. They fight now.",
-  "Italy's greatest cultural export since pizza.",
-];
+// ── Help Overlay ────────────────────────────────────────────
+
+function showHelpOverlay() {
+  const existing = document.querySelector('.help-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'help-overlay';
+  overlay.innerHTML = `
+    <div class="help-modal">
+      <h2>${t('help.title')}</h2>
+      ${getHelpHTML()}
+      <button class="btn btn-small" id="btn-close-help">${t('help.close')}</button>
+    </div>
+  `;
+  app.appendChild(overlay);
+
+  overlay.querySelector('#btn-close-help')?.addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
+}
 
 // ── Floating Damage Number ──────────────────────────────────
 
@@ -247,10 +260,11 @@ function renderTitle() {
 
   app.innerHTML = `
     <div class="title-screen">
+      ${renderLangToggle()}
       <div>
         <div class="title-logo">
-          BRAINROT<br>BATTLES
-          <span class="subtitle">${randomFrom(INTRO_LINES)}</span>
+          ROTMON<br>BATTLES
+          <span class="subtitle">${randomIntroLine()}</span>
         </div>
       </div>
       <div class="title-characters">
@@ -259,20 +273,23 @@ function renderTitle() {
         ).join('')}
       </div>
       <div class="title-buttons">
-        <button class="btn btn-large" id="btn-start">ARENA MODE</button>
-        ${endlessUnlocked ? `<button class="btn btn-large" id="btn-endless" style="border-color:var(--yellow);color:var(--yellow)">ENDLESS MODE</button>` : ''}
+        <button class="btn btn-large" id="btn-start">${t('title.arena')}</button>
+        ${endlessUnlocked ? `<button class="btn btn-large" id="btn-endless" style="border-color:var(--yellow);color:var(--yellow)">${t('title.endless')}</button>` : ''}
       </div>
       <div class="title-stats">
-        <p>Arena ${state.arenaLevel} / 5 ${streakDisplay}</p>
-        <p>${s.wins}W - ${s.losses}L ${s.bestStreak > 0 ? `| Best streak: ${s.bestStreak}` : ''}</p>
-        <p style="font-size:0.65rem; margin-top:0.3rem">${s.unlockedIds.length} / ${CHARACTERS.length} fighters unlocked</p>
+        <p>${t('title.arena_level', { level: state.arenaLevel })} ${streakDisplay}</p>
+        <p>${s.wins}W - ${s.losses}L ${s.bestStreak > 0 ? `| ${t('title.best_streak', { n: s.bestStreak })}` : ''}</p>
+        <p style="font-size:0.65rem; margin-top:0.3rem">${t('title.rotmons_unlocked', { n: s.unlockedIds.length, total: CHARACTERS.length })}</p>
         ${endlessUnlocked ? `
           <p style="font-size:0.65rem; margin-top:0.3rem; color:var(--yellow)">
-            Endless: Floor ${s.endless.bestFloor} | ELO ${s.endless.elo}
+            ${t('title.endless_stats', { floor: s.endless.bestFloor, elo: s.endless.elo })}
           </p>
         ` : ''}
       </div>
-      ${s.wins > 0 ? `<button class="btn btn-small" id="btn-reset" style="opacity:0.5">RESET PROGRESS</button>` : ''}
+      <div style="display:flex;gap:0.5rem;justify-content:center;flex-wrap:wrap">
+        ${s.wins > 0 ? `<button class="btn btn-small" id="btn-reset" style="opacity:0.5">${t('title.reset')}</button>` : ''}
+        <button class="btn btn-small" id="btn-help" style="opacity:0.5">${t('help.button')}</button>
+      </div>
     </div>
   `;
 
@@ -291,13 +308,19 @@ function renderTitle() {
   });
 
   document.getElementById('btn-reset')?.addEventListener('click', () => {
-    if (confirm('Reset all progress? Unlocks, stats, XP, everything gone.')) {
+    if (confirm(t('title.reset_confirm'))) {
       localStorage.removeItem(STORAGE_KEY);
       state.stats = loadStats();
       state.arenaLevel = 1;
       render();
     }
   });
+
+  document.getElementById('btn-help')?.addEventListener('click', () => {
+    showHelpOverlay();
+  });
+
+  setupLangToggle();
 }
 
 // ── Character Select (shared rendering logic) ───────────────
@@ -388,19 +411,20 @@ function renderSelect() {
 
   app.innerHTML = `
     <div class="select-screen">
+      ${renderLangToggle()}
       <div class="select-header">
-        <h2>CHOOSE YOUR FIGHTERS</h2>
+        <h2>${t('select.header')}</h2>
         <div class="budget-bar">
-          <span>BUDGET: </span>
+          <span>${t('select.budget')} </span>
           <span class="budget-dots">
             ${Array.from({ length: TEAM_BUDGET }, (_, i) =>
               `<span class="budget-dot ${i < currentCost ? 'spent' : 'available'}"></span>`
             ).join('')}
           </span>
-          <span class="budget-remaining">${remaining} left</span>
+          <span class="budget-remaining">${t('select.remaining', { n: remaining })}</span>
         </div>
         <p style="color:var(--text-dim);font-size:0.75rem;margin-top:0.3rem">
-          ${state.playerTeam.length}/3 selected | S=5 A=4 B=3 C=2 points | Arena ${state.arenaLevel}
+          ${t('select.selected_info', { n: state.playerTeam.length, arena: state.arenaLevel })}
         </p>
       </div>
 
@@ -422,11 +446,12 @@ function renderSelect() {
       </div>
 
       <div class="select-footer">
-        <button class="btn btn-small" id="btn-back">BACK</button>
+        <button class="btn btn-small" id="btn-back">${t('select.back')}</button>
+        <button class="btn btn-small" id="btn-help-select" style="opacity:0.5">${t('help.button')}</button>
         <button class="btn ${state.playerTeam.length === 3 ? 'btn-large' : 'btn-small'}"
                 id="btn-fight"
                 ${state.playerTeam.length < 3 ? 'disabled style="opacity:0.3;pointer-events:none"' : ''}>
-          FIGHT!
+          ${t('select.fight')}
         </button>
       </div>
     </div>
@@ -440,6 +465,10 @@ function renderSelect() {
     render();
   });
 
+  document.getElementById('btn-help-select')?.addEventListener('click', () => {
+    showHelpOverlay();
+  });
+
   document.getElementById('btn-fight')!.addEventListener('click', () => {
     if (state.playerTeam.length === 3) {
       const playerLevels = state.playerTeam.map(c => getCharLevel(c.id));
@@ -448,11 +477,14 @@ function renderSelect() {
       const cpuItemArray = cpuEquipItems(team, state.arenaLevel, 0);
       state.cpuTeam = team;
       state.battle = initBattle(state.playerTeam, state.cpuTeam, playerLevels, cpuLevels, playerItemArray, cpuItemArray);
+      state.battle.log = [t('battle.start')];
       state.screen = 'battle';
       trackEvent(`arena-start-lv${state.arenaLevel}`);
       render();
     }
   });
+
+  setupLangToggle();
 }
 
 // ── Endless Select Screen ───────────────────────────────────
@@ -475,38 +507,39 @@ function renderEndlessSelect() {
 
   app.innerHTML = `
     <div class="select-screen">
+      ${renderLangToggle()}
       <div class="endless-header">
         <div class="endless-stat">
-          <span class="endless-stat-label">FLOOR</span>
+          <span class="endless-stat-label">${t('endless.floor')}</span>
           <span class="endless-stat-value">${nextFloor} ${isBoss ? '👑' : ''}</span>
         </div>
         <div class="endless-stat">
-          <span class="endless-stat-label">ELO</span>
+          <span class="endless-stat-label">${t('endless.elo')}</span>
           <span class="endless-stat-value elo-display">${e.elo}</span>
         </div>
         <div class="endless-stat">
-          <span class="endless-stat-label">STREAK</span>
+          <span class="endless-stat-label">${t('endless.streak')}</span>
           <span class="endless-stat-value">${e.streak > 0 ? '🔥 ' + e.streak : '0'}</span>
         </div>
         <div class="endless-stat">
-          <span class="endless-stat-label">BEST</span>
+          <span class="endless-stat-label">${t('endless.best')}</span>
           <span class="endless-stat-value">F${e.bestFloor}</span>
         </div>
       </div>
 
       <div class="select-header">
-        <h2>ENDLESS MODE</h2>
+        <h2>${t('endless.header')}</h2>
         <div class="budget-bar">
-          <span>BUDGET: </span>
+          <span>${t('select.budget')} </span>
           <span class="budget-dots">
             ${Array.from({ length: TEAM_BUDGET }, (_, i) =>
               `<span class="budget-dot ${i < currentCost ? 'spent' : 'available'}"></span>`
             ).join('')}
           </span>
-          <span class="budget-remaining">${remaining} left</span>
+          <span class="budget-remaining">${t('select.remaining', { n: remaining })}</span>
         </div>
         <p style="color:var(--text-dim);font-size:0.75rem;margin-top:0.3rem">
-          ${state.playerTeam.length}/3 selected | All fighters unlocked
+          ${t('endless.selected_info', { n: state.playerTeam.length })}
         </p>
       </div>
 
@@ -528,11 +561,12 @@ function renderEndlessSelect() {
       </div>
 
       <div class="select-footer">
-        <button class="btn btn-small" id="btn-back">BACK</button>
+        <button class="btn btn-small" id="btn-back">${t('select.back')}</button>
+        <button class="btn btn-small" id="btn-help-endless" style="opacity:0.5">${t('help.button')}</button>
         <button class="btn ${state.playerTeam.length === 3 ? 'btn-large' : 'btn-small'}"
                 id="btn-fight"
                 ${state.playerTeam.length < 3 ? 'disabled style="opacity:0.3;pointer-events:none"' : ''}>
-          FLOOR ${nextFloor}${isBoss ? ' (BOSS)' : ''} — FIGHT!
+          ${isBoss ? t('endless.fight_boss', { floor: nextFloor }) : t('endless.fight', { floor: nextFloor })}
         </button>
       </div>
     </div>
@@ -546,6 +580,10 @@ function renderEndlessSelect() {
     render();
   });
 
+  document.getElementById('btn-help-endless')?.addEventListener('click', () => {
+    showHelpOverlay();
+  });
+
   document.getElementById('btn-fight')!.addEventListener('click', () => {
     if (state.playerTeam.length === 3) {
       const playerLevels = state.playerTeam.map(c => getCharLevel(c.id));
@@ -554,11 +592,14 @@ function renderEndlessSelect() {
       const cpuItemArray = cpuEquipItems(team, state.arenaLevel, nextFloor);
       state.cpuTeam = team;
       state.battle = initBattle(state.playerTeam, state.cpuTeam, playerLevels, cpuLevels, playerItemArray, cpuItemArray);
+      state.battle.log = [t('battle.start')];
       state.screen = 'battle';
       trackEvent(`endless-start-f${nextFloor}`);
       render();
     }
   });
+
+  setupLangToggle();
 }
 
 // ── Item Equip UI ──────────────────────────────────────────
@@ -575,12 +616,12 @@ function renderItemEquipRow(): string {
           <div class="item-slot" data-equip-char="${char.id}">
             <span style="font-size:0.6rem;color:var(--text-dim);font-family:var(--font-pixel)">${char.name.split(' ')[0]}</span>
             <span class="item-slot-icon">${item ? item.emoji : '➕'}</span>
-            <span style="font-size:0.55rem;color:${item ? 'var(--yellow)' : 'var(--text-dim)'}">${item ? item.name : 'No item'}</span>
+            <span style="font-size:0.55rem;color:${item ? 'var(--yellow)' : 'var(--text-dim)'}">${item ? item.name : t('item.no_item')}</span>
           </div>
         `;
       }).join('')}
     </div>
-    <p style="color:var(--text-dim);font-size:0.6rem;text-align:center;margin-top:0.2rem">${unlockedItemIds.length}/${ITEMS.length} items unlocked</p>
+    <p style="color:var(--text-dim);font-size:0.6rem;text-align:center;margin-top:0.2rem">${t('select.items_unlocked', { n: unlockedItemIds.length, total: ITEMS.length })}</p>
   `;
 }
 
@@ -603,11 +644,11 @@ function showItemModal(charId: string) {
   overlay.className = 'item-modal-overlay';
   overlay.innerHTML = `
     <div class="item-modal">
-      <h3 style="font-family:var(--font-pixel);font-size:0.7rem;margin-bottom:0.5rem">EQUIP ITEM — ${char.name.split(' ')[0]}</h3>
+      <h3 style="font-family:var(--font-pixel);font-size:0.7rem;margin-bottom:0.5rem">${t('item.equip_title', { name: char.name.split(' ')[0] })}</h3>
       <div class="item-grid">
         <div class="item-card ${!currentItemId ? 'selected' : ''}" data-item-pick="">
           <span class="item-card-emoji">✖</span>
-          <span class="item-card-name">None</span>
+          <span class="item-card-name">${t('item.none')}</span>
         </div>
         ${ITEMS.map(item => {
           const unlocked = unlockedItemIds.includes(item.id);
@@ -617,15 +658,15 @@ function showItemModal(charId: string) {
             <div class="item-card ${selected ? 'selected' : ''} ${!unlocked ? 'locked' : ''} ${taken ? 'taken' : ''}"
                  data-item-pick="${item.id}" ${!unlocked || taken ? '' : ''}>
               ${!unlocked ? '<div class="lock-overlay" style="font-size:0.5rem">🔒</div>' : ''}
-              ${taken ? '<div class="lock-overlay" style="font-size:0.5rem">IN USE</div>' : ''}
+              ${taken ? `<div class="lock-overlay" style="font-size:0.5rem">${t('item.in_use')}</div>` : ''}
               <span class="item-card-emoji">${item.emoji}</span>
               <span class="item-card-name">${item.name}</span>
-              <span class="item-card-desc">${item.description}</span>
+              <span class="item-card-desc">${tDesc(item.description)}</span>
             </div>
           `;
         }).join('')}
       </div>
-      <button class="btn btn-small" id="btn-close-items" style="margin-top:0.5rem">CLOSE</button>
+      <button class="btn btn-small" id="btn-close-items" style="margin-top:0.5rem">${t('item.close')}</button>
     </div>
   `;
 
@@ -682,10 +723,10 @@ function renderBattle() {
               ${c.template.emoji}
             </div>
           `).join('')}
-          <span style="font-size:0.7rem; color:var(--text-dim); align-self:center; margin-left:0.3rem">YOU</span>
+          <span style="font-size:0.7rem; color:var(--text-dim); align-self:center; margin-left:0.3rem">${t('battle.you')}</span>
         </div>
         <div class="bench-side">
-          <span style="font-size:0.7rem; color:var(--text-dim); align-self:center; margin-right:0.3rem">CPU</span>
+          <span style="font-size:0.7rem; color:var(--text-dim); align-self:center; margin-right:0.3rem">${t('battle.cpu')}</span>
           ${b.cpuTeam.map((c, i) => `
             <div class="bench-icon ${i === b.cpuActive ? 'active' : ''} ${!c.isAlive ? 'fainted' : ''}">
               ${c.template.emoji}
@@ -702,8 +743,8 @@ function renderBattle() {
             ${renderHpBar(player)}
             ${renderStatus(player)}
             <div class="fighter-indicators">
-              <span class="passive-indicator" title="${player.template.passive.description}">${player.template.passive.emoji} ${player.template.passive.name}</span>
-              ${player.item ? `<span class="item-indicator" title="${ITEMS.find(i => i.id === player.item)?.description || ''}">${ITEMS.find(i => i.id === player.item)?.emoji || ''} ${ITEMS.find(i => i.id === player.item)?.name || ''}</span>` : ''}
+              <span class="passive-indicator" title="${tDesc(player.template.passive.description)}">${player.template.passive.emoji} ${player.template.passive.name}</span>
+              ${player.item ? `<span class="item-indicator" title="${tDesc(ITEMS.find(i => i.id === player.item)?.description || '')}">${ITEMS.find(i => i.id === player.item)?.emoji || ''} ${ITEMS.find(i => i.id === player.item)?.name || ''}</span>` : ''}
             </div>
           </div>
         </div>
@@ -714,8 +755,8 @@ function renderBattle() {
             ${renderHpBar(cpu)}
             ${renderStatus(cpu)}
             <div class="fighter-indicators">
-              <span class="passive-indicator" title="${cpu.template.passive.description}">${cpu.template.passive.emoji} ${cpu.template.passive.name}</span>
-              ${cpu.item ? `<span class="item-indicator" title="${ITEMS.find(i => i.id === cpu.item)?.description || ''}">${ITEMS.find(i => i.id === cpu.item)?.emoji || ''} ${ITEMS.find(i => i.id === cpu.item)?.name || ''}</span>` : ''}
+              <span class="passive-indicator" title="${tDesc(cpu.template.passive.description)}">${cpu.template.passive.emoji} ${cpu.template.passive.name}</span>
+              ${cpu.item ? `<span class="item-indicator" title="${tDesc(ITEMS.find(i => i.id === cpu.item)?.description || '')}">${ITEMS.find(i => i.id === cpu.item)?.emoji || ''} ${ITEMS.find(i => i.id === cpu.item)?.name || ''}</span>` : ''}
             </div>
           </div>
         </div>
@@ -746,10 +787,10 @@ function renderBattle() {
     el.addEventListener('click', () => {
       const idx = parseInt((el as HTMLElement).dataset.switch!);
       b.playerActive = idx;
-      b.log.push(`You send out ${b.playerTeam[idx].template.name}!`);
+      b.log.push(t('battle.send_out', { name: b.playerTeam[idx].template.name }));
       const switchResult = onSwitchIn(b.playerTeam[idx], b.cpuTeam[b.cpuActive]);
       if (switchResult.confusedOpponent) {
-        b.log.push(`${b.cpuTeam[b.cpuActive].template.name} is confused by the dramatic entrance! 🎭`);
+        b.log.push(t('battle.dramatic_entrance', { name: b.cpuTeam[b.cpuActive].template.name }));
       }
       b.phase = 'select_action';
       render();
@@ -770,11 +811,7 @@ function renderHpBar(char: BattleCharacter): string {
 
 function renderStatus(char: BattleCharacter): string {
   if (!char.status) return '';
-  const labels: Record<string, string> = {
-    bleed: '🩸 Bleeding', confuse: '😵 Confused', freeze: '🧊 Frozen',
-    caffeinated: '⚡ Caffeinated', brainrot: '🧠 Brainrot',
-  };
-  return `<span class="status-badge status-${char.status.type}">${labels[char.status.type]} (${char.status.duration})</span>`;
+  return `<span class="status-badge status-${char.status.type}">${t(`status.${char.status.type}`)} (${char.status.duration})</span>`;
 }
 
 function renderMoveButtons(player: BattleCharacter): string {
@@ -791,11 +828,11 @@ function renderMoveButtons(player: BattleCharacter): string {
               <span class="type-badge" style="background:${info.color}22; color:${info.color}">
                 ${info.emoji} ${info.label}
               </span>
-              <span>PWR: ${move.power || 'Heal'}</span>
-              ${onCooldown ? `<span style="color:var(--red)">CD: ${player.cooldowns[i]}</span>` : ''}
+              <span>${t('battle.power')} ${move.power || t('battle.heal')}</span>
+              ${onCooldown ? `<span style="color:var(--red)">${t('battle.cooldown')} ${player.cooldowns[i]}</span>` : ''}
               ${move.effect ? `<span>${effectLabel(move.effect.type)}</span>` : ''}
             </div>
-            <div class="move-btn-desc">${move.description}</div>
+            <div class="move-btn-desc">${tDesc(move.description)}</div>
           </button>
         `;
       }).join('')}
@@ -806,8 +843,8 @@ function renderMoveButtons(player: BattleCharacter): string {
 function renderSwitchPrompt(): string {
   return `
     <div class="switch-prompt">
-      <h3>Your fighter fainted! Choose your next one:</h3>
-      <p style="color:var(--text-dim);font-size:0.8rem">Click an alive team member above</p>
+      <h3>${t('battle.switch_title')}</h3>
+      <p style="color:var(--text-dim);font-size:0.8rem">${t('battle.switch_hint')}</p>
     </div>
   `;
 }
@@ -870,7 +907,7 @@ async function executeAttack(
   const move = attacker.template.moves[moveIdx];
 
   if (isFrozen(attacker)) {
-    b.log.push(`${prefix}${name} is frozen and can't move! 🧊`);
+    b.log.push(t('battle.frozen', { prefix, name }));
     attacker.status!.duration -= 1;
     if (attacker.status!.duration <= 0) attacker.status = null;
     render();
@@ -883,7 +920,7 @@ async function executeAttack(
     showCatchphrase(attacker.template.catchphrase);
   }
 
-  b.log.push(`${prefix}${name} uses ${move.name}!`);
+  b.log.push(t('battle.uses_move', { prefix, name, move: move.name }));
   render();
   await delay(900);
 
@@ -924,44 +961,40 @@ function logMoveResult(
   const defenderName = getDisplayName(defender.template.name, defender.level);
 
   if (result.hitSelf) {
-    b.log.push(`${prefix}${attackerName} hurt itself in confusion! (-${result.selfDamage} HP)`);
+    b.log.push(t('battle.confused_self', { prefix, name: attackerName, n: result.selfDamage }));
     return;
   }
 
   if (result.dodged) {
-    b.log.push(`${defenderName} dodged the attack! 💨`);
+    b.log.push(t('battle.dodged', { name: defenderName }));
     return;
   }
 
   if (result.damage > 0) {
-    let msg = `It deals ${result.damage} damage!`;
-    if (result.effectiveness > 1.5) msg += ' Super effective! 💥';
-    else if (result.effectiveness < 0.8) msg += ' Not very effective...';
+    let msg = t('battle.damage', { n: result.damage });
+    if (result.effectiveness > 1.5) msg += ' ' + t('battle.super_effective');
+    else if (result.effectiveness < 0.8) msg += ' ' + t('battle.not_effective');
     b.log.push(msg);
   }
 
   if (result.healed > 0) {
-    b.log.push(`${prefix}${attackerName} restored ${result.healed} HP! 💚`);
+    b.log.push(t('battle.healed', { prefix, name: attackerName, n: result.healed }));
   }
 
   if (result.selfDamage > 0 && !result.hitSelf) {
-    b.log.push(`${prefix}${attackerName} took ${result.selfDamage} recoil damage!`);
+    b.log.push(t('battle.recoil', { prefix, name: attackerName, n: result.selfDamage }));
   }
 
   if (result.statusApplied) {
-    const labels: Record<string, string> = {
-      bleed: 'is bleeding! 🩸', confuse: 'is confused! 😵', freeze: 'is frozen solid! 🧊',
-      caffeinated: 'got caffeinated! ⚡', brainrot: 'caught brainrot! 🧠',
-    };
     const target = result.statusApplied.type === 'caffeinated' ? attacker : defender;
     const targetName = target === attacker ? attackerName : defenderName;
     const tPrefix = target === attacker ? prefix : (side === 'player' ? 'Enemy ' : '');
-    b.log.push(`${tPrefix}${targetName} ${labels[result.statusApplied.type]}`);
+    b.log.push(`${tPrefix}${targetName} ${t(`status.${result.statusApplied.type}_applied`)}`);
   }
 
   if (!defender.isAlive) {
     const dPrefix = side === 'player' ? 'Enemy ' : '';
-    b.log.push(`${dPrefix}${defenderName} fainted! 💀`);
+    b.log.push(t('battle.fainted', { prefix: dPrefix, name: defenderName }));
   }
 }
 
@@ -973,19 +1006,19 @@ async function endOfTurnTick(b: BattleState, char: BattleCharacter, opponent: Ba
 
   let logged = false;
   if (bleedDamage > 0) {
-    b.log.push(`${label} ${name} takes ${bleedDamage} bleed damage! 🩸`);
+    b.log.push(t('battle.bleed_tick', { label, name, n: bleedDamage }));
     logged = true;
   }
   if (passiveHeal > 0) {
-    b.log.push(`${label} ${name} heals ${passiveHeal} HP! ⏳`);
+    b.log.push(t('battle.passive_heal', { label, name, n: passiveHeal }));
     logged = true;
   }
   if (itemHeal > 0) {
-    b.log.push(`${label} ${name} heals ${itemHeal} HP! 🍇`);
+    b.log.push(t('battle.item_heal', { label, name, n: itemHeal }));
     logged = true;
   }
   if (nightmareDamage > 0) {
-    b.log.push(`${oppLabel} ${oppName} takes ${nightmareDamage} nightmare damage! 😱`);
+    b.log.push(t('battle.nightmare_tick', { label: oppLabel, name: oppName, n: nightmareDamage }));
     logged = true;
   }
   if (logged) {
@@ -1007,10 +1040,10 @@ async function checkFaintAndSwitch(b: BattleState): Promise<boolean> {
     const next = getNextAlive(b.cpuTeam, b.cpuActive);
     if (next !== null) {
       b.cpuActive = next;
-      b.log.push(`CPU sends out ${b.cpuTeam[next].template.name}!`);
+      b.log.push(t('battle.cpu_send_out', { name: b.cpuTeam[next].template.name }));
       const switchResult = onSwitchIn(b.cpuTeam[next], b.playerTeam[b.playerActive]);
       if (switchResult.confusedOpponent) {
-        b.log.push(`${b.playerTeam[b.playerActive].template.name} is confused by the dramatic entrance! 🎭`);
+        b.log.push(t('battle.dramatic_entrance', { name: b.playerTeam[b.playerActive].template.name }));
       }
       render();
       await delay(900);
@@ -1112,7 +1145,7 @@ function handleGameEnd(won: boolean) {
 
 function renderResult() {
   const won = state.battle?.winner === 'player';
-  const line = won ? randomFrom(VICTORY_LINES) : randomFrom(DEFEAT_LINES);
+  const line = won ? randomVictoryLine() : randomDefeatLine();
   const lastAlive = won
     ? state.battle!.playerTeam.find(c => c.isAlive)
     : state.battle!.cpuTeam.find(c => c.isAlive);
@@ -1120,22 +1153,23 @@ function renderResult() {
   const lastAliveLevel = lastAlive ? lastAlive.level : 1;
   const lastAliveEvo = getEvolutionStage(lastAliveLevel).cssClass;
 
-  const evoLabels: Record<number, string> = { 5: 'EX EVOLUTION!', 10: 'ULTRA EVOLUTION!', 15: 'OMEGA EVOLUTION!' };
+  const evoLabels: Record<number, string> = { 5: t('result.evo_ex'), 10: t('result.evo_ultra'), 15: t('result.evo_omega') };
 
   app.innerHTML = `
     <div class="result-screen">
+      ${renderLangToggle()}
       <div class="result-title ${won ? 'victory' : 'defeat'}">
-        ${won ? 'VICTORY!' : 'DEFEAT...'}
+        ${won ? t('result.victory') : t('result.defeat')}
       </div>
       ${lastAlive ? renderPortrait(lastAlive.template, 'lg', lastAliveEvo) : '<div style="font-size:4rem">💀</div>'}
       <p class="result-subtitle">${line}</p>
       ${lastAlive ? `<p class="result-catchphrase">"${lastAlive.template.catchphrase}"</p>` : ''}
 
       <div class="xp-reward-section">
-        <p class="xp-awarded">+${lastXpAwarded} XP to all fighters</p>
+        <p class="xp-awarded">${t('result.xp_awarded', { n: lastXpAwarded })}</p>
         ${lastLevelUps.map(lu => `
           <div class="level-up-notification animate-fade-in">
-            ⬆️ ${lu.name} reached Level ${lu.newLevel}!
+            ${t('result.level_up', { name: lu.name, level: lu.newLevel })}
             ${evoLabels[lu.newLevel] ? `<br><span style="color:var(--accent-glow)">${evoLabels[lu.newLevel]}</span>` : ''}
           </div>
         `).join('')}
@@ -1143,20 +1177,20 @@ function renderResult() {
 
       ${state.mode === 'endless' ? `
         <div class="endless-result-stats">
-          <span>Floor ${state.stats.endless.floor}</span>
-          <span class="elo-display">ELO ${state.stats.endless.elo}</span>
+          <span>${t('endless.floor')} ${state.stats.endless.floor}</span>
+          <span class="elo-display">${t('endless.elo')} ${state.stats.endless.elo}</span>
           ${state.stats.endless.streak > 1 ? `<span>🔥 ${state.stats.endless.streak} streak</span>` : ''}
-          <span>Best: F${state.stats.endless.bestFloor}</span>
+          <span>${t('endless.best')}: F${state.stats.endless.bestFloor}</span>
         </div>
       ` : ''}
 
       ${state.stats.winStreak > 1 && state.mode === 'arena' ? `
-        <div class="streak-banner">🔥 ${state.stats.winStreak} WIN STREAK 🔥</div>
+        <div class="streak-banner">${t('result.streak', { n: state.stats.winStreak })}</div>
       ` : ''}
 
       ${unlockedChars.length > 0 ? `
         <div class="unlock-banner animate-fade-in">
-          <h3 class="pixel-text" style="font-size:0.6rem;color:var(--yellow);margin-bottom:0.5rem">NEW FIGHTERS UNLOCKED!</h3>
+          <h3 class="pixel-text" style="font-size:0.6rem;color:var(--yellow);margin-bottom:0.5rem">${t('result.new_rotmons')}</h3>
           <div style="display:flex;gap:0.8rem;justify-content:center;flex-wrap:wrap">
             ${unlockedChars.map(c => c ? `
               <div class="unlock-card">
@@ -1170,7 +1204,7 @@ function renderResult() {
 
       ${lastNewItemUnlocks.length > 0 ? `
         <div class="unlock-banner animate-fade-in">
-          <h3 class="pixel-text" style="font-size:0.6rem;color:var(--yellow);margin-bottom:0.5rem">NEW ITEMS UNLOCKED!</h3>
+          <h3 class="pixel-text" style="font-size:0.6rem;color:var(--yellow);margin-bottom:0.5rem">${t('result.new_items')}</h3>
           <div style="display:flex;gap:0.8rem;justify-content:center;flex-wrap:wrap">
             ${lastNewItemUnlocks.map(id => {
               const item = ITEMS.find(i => i.id === id);
@@ -1188,15 +1222,15 @@ function renderResult() {
       <div class="result-buttons">
         ${state.mode === 'arena' ? `
           ${won && state.arenaLevel < 5 ? `
-            <button class="btn btn-large" id="btn-next">NEXT ARENA</button>
+            <button class="btn btn-large" id="btn-next">${t('result.next_arena')}</button>
           ` : ''}
-          <button class="btn ${won && state.arenaLevel < 5 ? 'btn-small' : 'btn-large'}" id="btn-menu">MAIN MENU</button>
-          <button class="btn btn-small" id="btn-rematch">REMATCH</button>
+          <button class="btn ${won && state.arenaLevel < 5 ? 'btn-small' : 'btn-large'}" id="btn-menu">${t('result.main_menu')}</button>
+          <button class="btn btn-small" id="btn-rematch">${t('result.rematch')}</button>
         ` : `
-          ${won ? `<button class="btn btn-large" id="btn-next-floor">NEXT FLOOR</button>` : ''}
-          ${!won ? `<button class="btn btn-large" id="btn-retry-floor">RETRY FLOOR</button>` : ''}
-          <button class="btn btn-small" id="btn-menu">MAIN MENU</button>
-          <button class="btn btn-small" id="btn-reselect">CHANGE TEAM</button>
+          ${won ? `<button class="btn btn-large" id="btn-next-floor">${t('result.next_floor')}</button>` : ''}
+          ${!won ? `<button class="btn btn-large" id="btn-retry-floor">${t('result.retry_floor')}</button>` : ''}
+          <button class="btn btn-small" id="btn-menu">${t('result.main_menu')}</button>
+          <button class="btn btn-small" id="btn-reselect">${t('result.change_team')}</button>
         `}
       </div>
     </div>
@@ -1217,6 +1251,7 @@ function renderResult() {
     const cpuItemArray = cpuEquipItems(team, state.arenaLevel, 0);
     state.cpuTeam = team;
     state.battle = initBattle(state.playerTeam, state.cpuTeam, playerLevels, cpuLevels, playerItemArray, cpuItemArray);
+    state.battle.log = [t('battle.start')];
     state.screen = 'battle';
     render();
   });
@@ -1230,6 +1265,7 @@ function renderResult() {
     const cpuItemArray = cpuEquipItems(team, state.arenaLevel, nextFloor);
     state.cpuTeam = team;
     state.battle = initBattle(state.playerTeam, state.cpuTeam, playerLevels, cpuLevels, playerItemArray, cpuItemArray);
+    state.battle.log = [t('battle.start')];
     state.screen = 'battle';
     render();
   });
@@ -1242,6 +1278,7 @@ function renderResult() {
     const cpuItemArray = cpuEquipItems(team, state.arenaLevel, retryFloor);
     state.cpuTeam = team;
     state.battle = initBattle(state.playerTeam, state.cpuTeam, playerLevels, cpuLevels, playerItemArray, cpuItemArray);
+    state.battle.log = [t('battle.start')];
     state.screen = 'battle';
     render();
   });
@@ -1258,6 +1295,8 @@ function renderResult() {
     state.arenaLevel = 1;
     render();
   });
+
+  setupLangToggle();
 }
 
 // ── Boot ────────────────────────────────────────────────────

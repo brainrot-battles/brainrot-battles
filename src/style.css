@@ -1246,3 +1246,125 @@ body::after {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; text-shadow: 0 0 8px var(--accent-glow); }
 }
+
+/* ── Language Toggle ───────────────────────────────────────── */
+
+.lang-toggle {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: flex;
+  gap: 0.2rem;
+  z-index: 50;
+}
+
+.lang-btn {
+  font-family: var(--font-pixel);
+  font-size: 0.5rem;
+  padding: 0.2rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-card);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.lang-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.lang-btn.active {
+  border-color: var(--accent);
+  background: var(--accent)33;
+  color: var(--text-bright);
+}
+
+/* ── Help Overlay ──────────────────────────────────────────── */
+
+.help-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  animation: fadeIn 0.2s;
+}
+
+.help-modal {
+  background: var(--bg-dark);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 1.2rem;
+  max-width: 520px;
+  width: 92%;
+  max-height: 85vh;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.help-modal h2 {
+  font-family: var(--font-pixel);
+  font-size: 0.8rem;
+  color: var(--accent-glow);
+  text-align: center;
+  margin-bottom: 0.8rem;
+}
+
+.help-content h3 {
+  font-family: var(--font-pixel);
+  font-size: 0.6rem;
+  color: var(--yellow);
+  margin-top: 0.8rem;
+  margin-bottom: 0.3rem;
+}
+
+.help-content p {
+  font-size: 0.75rem;
+  color: var(--text);
+  line-height: 1.5;
+  margin-bottom: 0.3rem;
+}
+
+.help-content strong {
+  color: var(--text-bright);
+}
+
+.help-section {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.6rem;
+  margin-bottom: 0.4rem;
+}
+
+.help-section:last-child {
+  border-bottom: none;
+}
+
+.help-type-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.4rem 0;
+  font-size: 0.65rem;
+}
+
+.help-type-table th {
+  font-family: var(--font-pixel);
+  font-size: 0.5rem;
+  color: var(--accent-glow);
+  text-align: left;
+  padding: 0.25rem 0.3rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.help-type-table td {
+  padding: 0.25rem 0.3rem;
+  color: var(--text);
+  border-bottom: 1px solid var(--border)44;
+}
+
+.help-type-table tr:hover td {
+  background: var(--bg-card);
+}
