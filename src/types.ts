@@ -35,13 +35,23 @@ export interface CharacterTemplate {
   catchphrase: string;
   type: ElementType;
   tier: 'S' | 'A' | 'B' | 'C';
+  cost: number; // budget cost: S=5, A=4, B=3, C=2
   description: string;
-  emoji: string; // visual placeholder
+  emoji: string; // fallback
+  portrait: PortraitConfig; // CSS-based visual
   hp: number;
   atk: number;
   def: number;
   spd: number;
   moves: Move[];
+  unlockArena: number; // arena level required to unlock (0 = always available)
+}
+
+export interface PortraitConfig {
+  bg: string; // CSS gradient background
+  icon: string; // fallback emoji
+  accent: string; // glow color
+  img: string; // actual image path e.g. '/img/tralalero.png'
 }
 
 export interface BattleCharacter {
@@ -66,10 +76,20 @@ export interface BattleState {
 
 export type Screen = 'title' | 'select' | 'battle' | 'result';
 
+export interface PlayerStats {
+  wins: number;
+  losses: number;
+  winStreak: number;
+  bestStreak: number;
+  highestArena: number;
+  unlockedIds: string[]; // character IDs unlocked
+}
+
 export interface GameState {
   screen: Screen;
   playerTeam: CharacterTemplate[];
   cpuTeam: CharacterTemplate[];
   battle: BattleState | null;
   arenaLevel: number;
+  stats: PlayerStats;
 }

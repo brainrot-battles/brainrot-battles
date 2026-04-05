@@ -31,18 +31,40 @@ export const TYPE_INFO: Record<ElementType, { label: string; emoji: string; colo
   frutta:   { label: 'Frutta',   emoji: '🍌', color: '#f39c12' },
 };
 
+// ── Budget costs ────────────────────────────────────────────
+
+export const TIER_COST: Record<string, number> = { S: 5, A: 4, B: 3, C: 2 };
+export const TEAM_BUDGET = 10;
+
+// ── Unlock rewards per arena level ──────────────────────────
+
+export const ARENA_UNLOCK_CHARS: Record<number, string[]> = {
+  1: [], // beat arena 1 → unlock these
+  2: ['bobrito', 'trippi-troppi'],
+  3: ['cappuccino-assassino', 'lirili', 'boneca'],
+  4: ['chimpanzini', 'ballerina', 'bananita'],
+  5: ['tung-tung', 'vaca-saturno'],
+};
+
 // ── 16 Characters ───────────────────────────────────────────
 
 export const CHARACTERS: CharacterTemplate[] = [
-  // ── TIER S ──
+  // ── TIER S ── (cost 5, unlock via arena 5)
   {
     id: 'tung-tung',
     name: 'Tung Tung Tung Sahur',
     catchphrase: 'TUNG TUNG TUNG SAHUUUURRR!',
     type: 'spirito',
-    tier: 'S',
+    tier: 'S', cost: 5,
+    unlockArena: 5,
     description: 'The Death Herald. A wooden plank entity wielding an indestructible bat. Classified: DO NOT ENGAGE.',
     emoji: '🪵',
+    portrait: {
+      bg: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+      icon: '🪵',
+      accent: '#4a90d9',
+      img: '/img/tung-tung.png',
+    },
     hp: 110, atk: 42, def: 30, spd: 35,
     moves: [
       { name: 'Sahur Strike', type: 'spirito', power: 25, description: 'A devastating bat swing from beyond.', cooldown: 0 },
@@ -56,9 +78,16 @@ export const CHARACTERS: CharacterTemplate[] = [
     name: 'La Vaca Saturno Saturnita',
     catchphrase: 'La Vaca Saturno Saturnita...',
     type: 'cosmico',
-    tier: 'S',
+    tier: 'S', cost: 5,
+    unlockArena: 5,
     description: 'Silent cosmic entity. A cow-planet fusion with Saturn\'s rings. Stares into your soul from orbit.',
     emoji: '🪐',
+    portrait: {
+      bg: 'linear-gradient(135deg, #2d1b69 0%, #11001c 50%, #45108a 100%)',
+      icon: '🪐',
+      accent: '#a855f7',
+      img: '/img/vaca-saturno.png',
+    },
     hp: 120, atk: 40, def: 35, spd: 20,
     moves: [
       { name: 'Cosmic Stare', type: 'cosmico', power: 22, description: 'An infinite gaze from the void.', cooldown: 0 },
@@ -68,15 +97,22 @@ export const CHARACTERS: CharacterTemplate[] = [
     ],
   },
 
-  // ── TIER A ──
+  // ── TIER A ── (cost 4, unlock via arena 3-4)
   {
     id: 'bombardiro',
     name: 'Bombardiro Crocodilo',
     catchphrase: 'BOMBARDO CROCODILO!',
     type: 'militare',
-    tier: 'A',
+    tier: 'A', cost: 4,
+    unlockArena: 0,
     description: 'A crocodile fused with a WWII bomber. Committed unspeakable war crimes in the Forest Incident.',
     emoji: '🐊',
+    portrait: {
+      bg: 'linear-gradient(135deg, #4a1a1a 0%, #8b0000 50%, #2d0000 100%)',
+      icon: '🐊',
+      accent: '#ff4444',
+      img: '/img/bombardiro.png',
+    },
     hp: 100, atk: 38, def: 28, spd: 25,
     moves: [
       { name: 'Bombardo Blast', type: 'militare', power: 25, description: 'Standard explosive payload.', cooldown: 0 },
@@ -90,9 +126,16 @@ export const CHARACTERS: CharacterTemplate[] = [
     name: 'Tralalero Tralala',
     catchphrase: 'TRALALERO... TRALALA!',
     type: 'aquatico',
-    tier: 'A',
+    tier: 'A', cost: 4,
+    unlockArena: 0,
     description: 'The OG. A three-legged blue shark in Nike sneakers. Unmatched speed and chaotic energy.',
     emoji: '🦈',
+    portrait: {
+      bg: 'linear-gradient(135deg, #0a2463 0%, #1e3a8a 50%, #0c4a6e 100%)',
+      icon: '🦈',
+      accent: '#38bdf8',
+      img: '/img/tralalero.png',
+    },
     hp: 85, atk: 35, def: 22, spd: 45,
     moves: [
       { name: 'Nike Kick', type: 'aquatico', power: 20, description: 'Triple-legged sneaker combo.', cooldown: 0 },
@@ -106,9 +149,16 @@ export const CHARACTERS: CharacterTemplate[] = [
     name: 'Brr Brr Patapim',
     catchphrase: 'Brr. Brr. Patapim.',
     type: 'natura',
-    tier: 'A',
+    tier: 'A', cost: 4,
+    unlockArena: 0,
     description: 'Giant proboscis monkey fused with a tree. Forest guardian. Crushing feet. Retired to the Russian Taiga.',
     emoji: '🌳',
+    portrait: {
+      bg: 'linear-gradient(135deg, #0b3d0b 0%, #1a5c1a 50%, #0d4f0d 100%)',
+      icon: '🌳',
+      accent: '#4ade80',
+      img: '/img/brr-patapim.png',
+    },
     hp: 115, atk: 30, def: 38, spd: 18,
     moves: [
       { name: 'Root Slam', type: 'natura', power: 22, description: 'Ancient roots erupt from below.', cooldown: 0 },
@@ -122,9 +172,16 @@ export const CHARACTERS: CharacterTemplate[] = [
     name: 'Cappuccino Assassino',
     catchphrase: 'Capu capu, Cappuccino Assassino...',
     type: 'cucina',
-    tier: 'A',
+    tier: 'A', cost: 4,
+    unlockArena: 3,
     description: 'Coffee-cup headed ninja assassin. Heartbroken. Deadly. Always watching.',
     emoji: '☕',
+    portrait: {
+      bg: 'linear-gradient(135deg, #3d1c02 0%, #6b3410 50%, #4a2106 100%)',
+      icon: '☕',
+      accent: '#fb923c',
+      img: '/img/cappuccino-assassino.png',
+    },
     hp: 80, atk: 42, def: 20, spd: 40,
     moves: [
       { name: 'Espresso Shuriken', type: 'cucina', power: 22, description: 'Boiling coffee stars fly.', cooldown: 0 },
@@ -134,15 +191,22 @@ export const CHARACTERS: CharacterTemplate[] = [
     ],
   },
 
-  // ── TIER B ──
+  // ── TIER B ── (cost 3)
   {
     id: 'ballerina',
     name: 'Ballerina Cappuccina',
     catchphrase: 'Ballerina... Capuchina...',
     type: 'cucina',
-    tier: 'B',
+    tier: 'B', cost: 3,
+    unlockArena: 4,
     description: 'A ballerina with a cappuccino mug for a head. Married, cheated, caught. Drama incarnate.',
     emoji: '🩰',
+    portrait: {
+      bg: 'linear-gradient(135deg, #4a1942 0%, #7b2d5f 50%, #3d1035 100%)',
+      icon: '🩰',
+      accent: '#f472b6',
+      img: '/img/ballerina.png',
+    },
     hp: 75, atk: 28, def: 25, spd: 38,
     moves: [
       { name: 'Pirouette Splash', type: 'cucina', power: 18, description: 'Hot coffee sprays in a graceful spin.', cooldown: 0 },
@@ -156,9 +220,16 @@ export const CHARACTERS: CharacterTemplate[] = [
     name: 'Chimpanzini Bananini',
     catchphrase: 'Shampanziniii... Bananinii...',
     type: 'frutta',
-    tier: 'B',
+    tier: 'B', cost: 3,
+    unlockArena: 4,
     description: 'A genius-level chimp hidden inside a banana. Master assassin. Indestructible.',
     emoji: '🍌',
+    portrait: {
+      bg: 'linear-gradient(135deg, #4a3800 0%, #7a6000 50%, #5c4a00 100%)',
+      icon: '🍌',
+      accent: '#facc15',
+      img: '/img/chimpanzini.png',
+    },
     hp: 70, atk: 40, def: 18, spd: 42,
     moves: [
       { name: 'Banana Shiv', type: 'frutta', power: 20, description: 'Not just a fruit anymore.', cooldown: 0 },
@@ -172,9 +243,16 @@ export const CHARACTERS: CharacterTemplate[] = [
     name: 'Bobrito Bandito',
     catchphrase: 'Oi, Oi, Oi... BOBRITO BONDITO!',
     type: 'militare',
-    tier: 'B',
+    tier: 'B', cost: 3,
+    unlockArena: 2,
     description: 'Gangster beaver with a fedora and tommy gun. Lurks in shadows. Robs banks for fun.',
     emoji: '🦫',
+    portrait: {
+      bg: 'linear-gradient(135deg, #2d2d2d 0%, #4a4a4a 50%, #1a1a1a 100%)',
+      icon: '🦫',
+      accent: '#a3a3a3',
+      img: '/img/bobrito.png',
+    },
     hp: 90, atk: 36, def: 24, spd: 30,
     moves: [
       { name: 'Tommy Spray', type: 'militare', power: 15, description: 'Infinite ammo. No aim needed.', cooldown: 0, hits: 2 },
@@ -188,9 +266,16 @@ export const CHARACTERS: CharacterTemplate[] = [
     name: 'Trippi Troppi',
     catchphrase: 'Trippi troppi, troppa trippa...',
     type: 'aquatico',
-    tier: 'B',
+    tier: 'B', cost: 3,
+    unlockArena: 2,
     description: 'Cat-shrimp? Bear-fish? Nobody knows. Exists in multiple forms across the multiverse.',
     emoji: '🦐',
+    portrait: {
+      bg: 'linear-gradient(135deg, #1a3a4a 0%, #2d5a6a 50%, #0d2f3f 100%)',
+      icon: '🦐',
+      accent: '#22d3ee',
+      img: '/img/trippi-troppi.png',
+    },
     hp: 88, atk: 32, def: 26, spd: 28,
     moves: [
       { name: 'Troppi Splash', type: 'aquatico', power: 20, description: 'Water from an unknowable dimension.', cooldown: 0 },
@@ -204,9 +289,16 @@ export const CHARACTERS: CharacterTemplate[] = [
     name: 'Lirili Larila',
     catchphrase: 'Lirili Larila, elefante nel deserto...',
     type: 'natura',
-    tier: 'B',
+    tier: 'B', cost: 3,
+    unlockArena: 3,
     description: 'Bipedal elephant-cactus in oversized sandals. Desert wanderer. Survived assassination across timelines.',
     emoji: '🌵',
+    portrait: {
+      bg: 'linear-gradient(135deg, #2d4a1a 0%, #4a7a2d 50%, #1a3d0d 100%)',
+      icon: '🌵',
+      accent: '#a3e635',
+      img: '/img/lirili.png',
+    },
     hp: 95, atk: 26, def: 30, spd: 22,
     moves: [
       { name: 'Sandal Smack', type: 'natura', power: 18, description: 'Oversized footwear, maximum impact.', cooldown: 0 },
@@ -216,15 +308,22 @@ export const CHARACTERS: CharacterTemplate[] = [
     ],
   },
 
-  // ── TIER C ──
+  // ── TIER C ── (cost 2, always available)
   {
     id: 'frigo-camelo',
     name: 'Frigo Camelo',
     catchphrase: 'Che freddo qui dentro...',
     type: 'cucina',
-    tier: 'C',
+    tier: 'C', cost: 2,
+    unlockArena: 0,
     description: 'A camel head on a refrigerator body. Loses every fight but never stops trying. Respect.',
     emoji: '🐪',
+    portrait: {
+      bg: 'linear-gradient(135deg, #1a2a4a 0%, #2a4a6a 50%, #0d1f3f 100%)',
+      icon: '🐪',
+      accent: '#7dd3fc',
+      img: '/img/frigo-camelo.png',
+    },
     hp: 100, atk: 22, def: 32, spd: 15,
     moves: [
       { name: 'Cold Breath', type: 'cucina', power: 16, description: 'Refrigerated camel breath. Gross.', cooldown: 0 },
@@ -238,9 +337,16 @@ export const CHARACTERS: CharacterTemplate[] = [
     name: 'Boneca Ambalabu',
     catchphrase: 'Boneka Ambalabu, entitas jahat...',
     type: 'spirito',
-    tier: 'C',
+    tier: 'C', cost: 2,
+    unlockArena: 3,
     description: 'A car tire body with a bullfrog head on human legs. Indonesian nightmare fuel. Haunting stare.',
     emoji: '🐸',
+    portrait: {
+      bg: 'linear-gradient(135deg, #1a1a2e 0%, #2d2d4a 50%, #0d0d1f 100%)',
+      icon: '🐸',
+      accent: '#818cf8',
+      img: '/img/boneca.png',
+    },
     hp: 85, atk: 30, def: 28, spd: 26,
     moves: [
       { name: 'Tire Roll', type: 'spirito', power: 18, description: 'Rolls menacingly toward you.', cooldown: 0 },
@@ -254,9 +360,16 @@ export const CHARACTERS: CharacterTemplate[] = [
     name: 'Rhino Toasterino',
     catchphrase: 'Rino Rino Tosterrino!',
     type: 'cucina',
-    tier: 'C',
+    tier: 'C', cost: 2,
+    unlockArena: 0,
     description: 'Rhinoceros-toaster hybrid. Zero backstory. Ejects toast at lethal velocity.',
     emoji: '🦏',
+    portrait: {
+      bg: 'linear-gradient(135deg, #3d2800 0%, #6b4800 50%, #4a3200 100%)',
+      icon: '🦏',
+      accent: '#fdba74',
+      img: '/img/rhino-toasterino.png',
+    },
     hp: 92, atk: 28, def: 30, spd: 20,
     moves: [
       { name: 'Toast Eject', type: 'cucina', power: 18, description: 'Surprise! Burning toast to the face.', cooldown: 0 },
@@ -270,9 +383,16 @@ export const CHARACTERS: CharacterTemplate[] = [
     name: 'Bananita Dolphinita',
     catchphrase: 'Bananitta Dolfinitta, frulli frulli frulli...',
     type: 'aquatico',
-    tier: 'C',
+    tier: 'C', cost: 2,
+    unlockArena: 4,
     description: 'A banana-dolphin hybrid with a peel-tail. Slippery, fast, impossible to catch.',
     emoji: '🐬',
+    portrait: {
+      bg: 'linear-gradient(135deg, #1a3a1a 0%, #2d5a3d 50%, #0d3f2d 100%)',
+      icon: '🐬',
+      accent: '#34d399',
+      img: '/img/bananita.png',
+    },
     hp: 72, atk: 30, def: 18, spd: 40,
     moves: [
       { name: 'Peel Slap', type: 'aquatico', power: 16, description: 'Tail whip with banana physics.', cooldown: 0 },
@@ -286,9 +406,16 @@ export const CHARACTERS: CharacterTemplate[] = [
     name: 'Orangutini Ananasini',
     catchphrase: 'Orangutini Ananasiniiiii!',
     type: 'frutta',
-    tier: 'C',
+    tier: 'C', cost: 2,
+    unlockArena: 0,
     description: 'Orangutan-pineapple hybrid. Tropical chaos agent. Fruit armor. Pure brawler energy.',
     emoji: '🍍',
+    portrait: {
+      bg: 'linear-gradient(135deg, #3d3d00 0%, #6b6b00 50%, #4a4a00 100%)',
+      icon: '🍍',
+      accent: '#fbbf24',
+      img: '/img/orangutini.png',
+    },
     hp: 95, atk: 34, def: 26, spd: 22,
     moves: [
       { name: 'Pineapple Punch', type: 'frutta', power: 20, description: 'Spiky fist to the face.', cooldown: 0 },
@@ -298,3 +425,7 @@ export const CHARACTERS: CharacterTemplate[] = [
     ],
   },
 ];
+
+// ── Starter characters (always available) ───────────────────
+
+export const STARTER_IDS = CHARACTERS.filter(c => c.unlockArena === 0).map(c => c.id);

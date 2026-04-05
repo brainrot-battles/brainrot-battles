@@ -1,6 +1,6 @@
 import './style.css';
-import type { GameState, BattleState, BattleCharacter } from './types';
-import { CHARACTERS, TYPE_INFO } from './data';
+import type { GameState, BattleState, BattleCharacter, PlayerStats } from './types';
+import { CHARACTERS, TYPE_INFO, TEAM_BUDGET, STARTER_IDS, ARENA_UNLOCK_CHARS } from './data';
 import {
   initBattle,
   applyMove,
@@ -14,6 +14,26 @@ import {
 } from './engine';
 import type { MoveResult } from './engine';
 
+// ── Persistence ─────────────────────────────────────────────
+
+const STORAGE_KEY = 'brainrot-battles-stats';
+
+function loadStats(): PlayerStats {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return {
+    wins: 0, losses: 0, winStreak: 0, bestStreak: 0,
+    highestArena: 1,
+    unlockedIds: [...STARTER_IDS],
+  };
+}
+
+function saveStats(stats: PlayerStats) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(stats));
+}
+
 // ── Game State ──────────────────────────────────────────────
 
 const state: GameState = {
@@ -22,9 +42,57 @@ const state: GameState = {
   cpuTeam: [],
   battle: null,
   arenaLevel: 1,
+  stats: loadStats(),
 };
 
 const app = document.getElementById('app')!;
+
+// ── Helpers ─────────────────────────────────────────────────
+
+function randomFrom<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function isUnlocked(charId: string): boolean {
+  return state.stats.unlockedIds.includes(charId);
+}
+
+function getTeamCost(): number {
+  return state.playerTeam.reduce((sum, c) => sum + c.cost, 0);
+}
+
+function canAfford(cost: number): boolean {
+  return getTeamCost() + cost <= TEAM_BUDGET;
+}
+
+// ── Portrait Renderer ───────────────────────────────────────
+
+function renderPortrait(char: { portrait: { bg: string; icon: string; accent: string; img: string }; name: string }, size: 'sm' | 'md' | 'lg' = 'md'): string {
+  const sizes = { sm: '48px', md: '80px', lg: '120px' };
+  const s = sizes[size];
+  return `
+    <div class="portrait portrait-${size}" style="
+      width:${s}; height:${s};
+      background:${char.portrait.bg};
+      border-radius:12px;
+      display:flex; align-items:center; justify-content:center;
+      box-shadow: 0 0 15px ${char.portrait.accent}44, inset 0 0 20px rgba(0,0,0,0.3);
+      border: 2px solid ${char.portrait.accent}66;
+      position:relative;
+      overflow:hidden;
+    " title="${char.name}">
+      <img src="${char.portrait.img}" alt="${char.name}"
+           style="width:90%; height:90%; object-fit:contain; filter:drop-shadow(0 0 6px ${char.portrait.accent}); z-index:1;"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
+      <span style="display:none; font-size:${size === 'lg' ? '4rem' : size === 'md' ? '2.4rem' : '1.4rem'}; z-index:1;">${char.portrait.icon}</span>
+      <div style="position:absolute;inset:0;background:radial-gradient(circle at 30% 30%, rgba(255,255,255,0.08) 0%, transparent 60%);z-index:2;pointer-events:none;"></div>
+    </div>
+  `;
+}
 
 // ── Sarcastic Lines ─────────────────────────────────────────
 
@@ -54,8 +122,28 @@ const INTRO_LINES = [
   "Italy's greatest cultural export since pizza.",
 ];
 
-function randomFrom<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
+// ── Floating Damage Number ───���──────────────────────────────
+
+function showFloatingText(targetId: string, text: string, color: string) {
+  const target = document.getElementById(targetId);
+  if (!target) return;
+  const el = document.createElement('div');
+  el.className = 'floating-text';
+  el.textContent = text;
+  el.style.color = color;
+  target.style.position = 'relative';
+  target.appendChild(el);
+  setTimeout(() => el.remove(), 1000);
+}
+
+function showCatchphrase(text: string) {
+  const existing = document.querySelector('.catchphrase-popup');
+  if (existing) existing.remove();
+  const el = document.createElement('div');
+  el.className = 'catchphrase-popup';
+  el.innerHTML = `"${text}"`;
+  app.appendChild(el);
+  setTimeout(() => el.remove(), 2000);
 }
 
 // ── Render Router ───────────────────────────────────────────
@@ -72,6 +160,11 @@ function render() {
 // ── Title Screen ────────────────────────────────────────────
 
 function renderTitle() {
+  const s = state.stats;
+  const streakDisplay = s.winStreak > 0
+    ? `<span style="color:var(--green)">🔥 ${s.winStreak} win streak</span>`
+    : '';
+
   app.innerHTML = `
     <div class="title-screen">
       <div>
@@ -81,39 +174,66 @@ function renderTitle() {
         </div>
       </div>
       <div class="title-characters">
-        🦈 🐊 🪵 ☕ 🪐 🌳 🍌
+        ${['🦈', '🐊', '🪵', '☕', '🪐', '🌳', '🍌'].map(e =>
+          `<span class="title-char-icon">${e}</span>`
+        ).join('')}
       </div>
       <button class="btn btn-large" id="btn-start">START GAME</button>
-      <p style="color: var(--text-dim); font-size: 0.75rem; max-width: 400px;">
-        Pick 3 brainrot creatures. Battle the CPU. Question your life choices.
-        <br><br>Arena ${state.arenaLevel} / 5
-      </p>
+      <div class="title-stats">
+        <p>Arena ${state.arenaLevel} / 5 ${streakDisplay}</p>
+        <p>${s.wins}W - ${s.losses}L ${s.bestStreak > 0 ? `| Best streak: ${s.bestStreak}` : ''}</p>
+        <p style="font-size:0.65rem; margin-top:0.3rem">${s.unlockedIds.length} / ${CHARACTERS.length} fighters unlocked</p>
+      </div>
+      ${s.wins > 0 ? `<button class="btn btn-small" id="btn-reset" style="opacity:0.5">RESET PROGRESS</button>` : ''}
     </div>
   `;
+
   document.getElementById('btn-start')!.addEventListener('click', () => {
     state.playerTeam = [];
     state.screen = 'select';
     render();
   });
+
+  document.getElementById('btn-reset')?.addEventListener('click', () => {
+    if (confirm('Reset all progress? Unlocks, stats, everything gone.')) {
+      localStorage.removeItem(STORAGE_KEY);
+      state.stats = loadStats();
+      state.arenaLevel = 1;
+      render();
+    }
+  });
 }
 
-// ── Character Select ────────────────────────────────────────
+// ── Character Select ─────────────────────────────���──────────
 
 function renderSelect() {
   const selectedIds = state.playerTeam.map(c => c.id);
+  const currentCost = getTeamCost();
+  const remaining = TEAM_BUDGET - currentCost;
 
   app.innerHTML = `
     <div class="select-screen">
       <div class="select-header">
         <h2>CHOOSE YOUR FIGHTERS</h2>
-        <p>Select 3 creatures for your team (${state.playerTeam.length}/3)</p>
+        <div class="budget-bar">
+          <span>BUDGET: </span>
+          <span class="budget-dots">
+            ${Array.from({ length: TEAM_BUDGET }, (_, i) =>
+              `<span class="budget-dot ${i < currentCost ? 'spent' : 'available'}"></span>`
+            ).join('')}
+          </span>
+          <span class="budget-remaining">${remaining} left</span>
+        </div>
+        <p style="color:var(--text-dim);font-size:0.75rem;margin-top:0.3rem">
+          ${state.playerTeam.length}/3 selected | S=5 A=4 B=3 C=2 points
+        </p>
       </div>
 
       <div class="team-preview">
         ${[0, 1, 2].map(i => {
           const char = state.playerTeam[i];
           return `<div class="team-slot ${char ? 'filled' : ''}" ${char ? `data-remove="${i}"` : ''}>
-            ${char ? char.emoji : '?'}
+            ${char ? renderPortrait(char, 'sm') : '<span style="color:var(--text-dim);font-size:1.5rem">?</span>'}
           </div>`;
         }).join('')}
       </div>
@@ -121,19 +241,26 @@ function renderSelect() {
       <div class="character-grid">
         ${CHARACTERS.map(c => {
           const isSelected = selectedIds.includes(c.id);
+          const locked = !isUnlocked(c.id);
+          const tooExpensive = !isSelected && state.playerTeam.length < 3 && !canAfford(c.cost);
           const isFull = state.playerTeam.length >= 3 && !isSelected;
+          const disabled = locked || tooExpensive || isFull;
           const info = TYPE_INFO[c.type];
           return `
-            <div class="char-card ${isSelected ? 'selected' : ''} ${isFull ? 'disabled' : ''}"
+            <div class="char-card ${isSelected ? 'selected' : ''} ${disabled ? 'disabled' : ''} ${locked ? 'locked' : ''}"
                  data-id="${c.id}">
-              <div class="char-card-emoji">${c.emoji}</div>
+              ${locked ? '<div class="lock-overlay">🔒 Arena ' + c.unlockArena + '</div>' : ''}
+              <div class="char-card-portrait">
+                ${renderPortrait(c, 'sm')}
+              </div>
               <div class="char-card-info">
                 <div class="char-card-name">${c.name}</div>
                 <div class="char-card-meta">
                   <span class="type-badge" style="background:${info.color}22; color:${info.color}">
                     ${info.emoji} ${info.label}
                   </span>
-                  <span class="tier-badge tier-${c.tier}">Tier ${c.tier}</span>
+                  <span class="tier-badge tier-${c.tier}">T${c.tier}</span>
+                  <span class="cost-badge" style="color:${tooExpensive ? 'var(--red)' : 'var(--text-dim)'}">⬡${c.cost}</span>
                 </div>
                 <div class="char-card-stats">
                   <span>HP:${c.hp}</span>
@@ -158,8 +285,8 @@ function renderSelect() {
     </div>
   `;
 
-  // Event: card clicks
-  app.querySelectorAll('.char-card').forEach(card => {
+  // Events
+  app.querySelectorAll('.char-card:not(.locked)').forEach(card => {
     card.addEventListener('click', () => {
       const id = (card as HTMLElement).dataset.id!;
       const idx = state.playerTeam.findIndex(c => c.id === id);
@@ -167,13 +294,14 @@ function renderSelect() {
         state.playerTeam.splice(idx, 1);
       } else if (state.playerTeam.length < 3) {
         const char = CHARACTERS.find(c => c.id === id)!;
-        state.playerTeam.push(char);
+        if (canAfford(char.cost)) {
+          state.playerTeam.push(char);
+        }
       }
       renderSelect();
     });
   });
 
-  // Event: remove from team preview
   app.querySelectorAll('[data-remove]').forEach(slot => {
     slot.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -183,13 +311,11 @@ function renderSelect() {
     });
   });
 
-  // Event: back
   document.getElementById('btn-back')!.addEventListener('click', () => {
     state.screen = 'title';
     render();
   });
 
-  // Event: fight
   document.getElementById('btn-fight')!.addEventListener('click', () => {
     if (state.playerTeam.length === 3) {
       state.cpuTeam = generateCpuTeam(state.playerTeam, state.arenaLevel);
@@ -200,7 +326,7 @@ function renderSelect() {
   });
 }
 
-// ── Battle Screen ───────────────────────────────────────────
+// ── Battle Screen ────────��───────────────────────────────��──
 
 function renderBattle() {
   if (!state.battle) return;
@@ -210,7 +336,6 @@ function renderBattle() {
 
   app.innerHTML = `
     <div class="battle-screen">
-      <!-- Team Bench -->
       <div class="team-bench">
         <div class="bench-side">
           ${b.playerTeam.map((c, i) => `
@@ -231,10 +356,9 @@ function renderBattle() {
         </div>
       </div>
 
-      <!-- Battle Field -->
       <div class="battle-field">
         <div class="fighter fighter-player" id="fighter-player">
-          <div class="fighter-sprite">${player.template.emoji}</div>
+          ${renderPortrait(player.template, 'lg')}
           <div class="fighter-info">
             <div class="fighter-name">${player.template.name}</div>
             ${renderHpBar(player)}
@@ -242,7 +366,7 @@ function renderBattle() {
           </div>
         </div>
         <div class="fighter fighter-cpu" id="fighter-cpu">
-          <div class="fighter-sprite">${cpu.template.emoji}</div>
+          ${renderPortrait(cpu.template, 'lg')}
           <div class="fighter-info">
             <div class="fighter-name">${cpu.template.name}</div>
             ${renderHpBar(cpu)}
@@ -251,23 +375,19 @@ function renderBattle() {
         </div>
       </div>
 
-      <!-- Controls -->
       ${b.phase === 'switch' ? renderSwitchPrompt() : ''}
       ${b.phase === 'select_action' ? renderMoveButtons(player) : ''}
       ${b.phase === 'animating' ? '<div style="text-align:center;padding:1rem;"><span class="pixel-text" style="font-size:0.6rem;color:var(--text-dim)">...</span></div>' : ''}
 
-      <!-- Battle Log -->
       <div class="battle-log" id="battle-log">
         ${b.log.slice(-6).map(l => `<p>${l}</p>`).join('')}
       </div>
     </div>
   `;
 
-  // Scroll log to bottom
   const logEl = document.getElementById('battle-log');
   if (logEl) logEl.scrollTop = logEl.scrollHeight;
 
-  // Event: move buttons
   app.querySelectorAll('[data-move]').forEach(btn => {
     btn.addEventListener('click', () => {
       if (b.phase !== 'select_action') return;
@@ -276,7 +396,6 @@ function renderBattle() {
     });
   });
 
-  // Event: switch buttons
   app.querySelectorAll('[data-switch]').forEach(el => {
     el.addEventListener('click', () => {
       const idx = parseInt((el as HTMLElement).dataset.switch!);
@@ -302,11 +421,8 @@ function renderHpBar(char: BattleCharacter): string {
 function renderStatus(char: BattleCharacter): string {
   if (!char.status) return '';
   const labels: Record<string, string> = {
-    bleed: '🩸 Bleeding',
-    confuse: '😵 Confused',
-    freeze: '🧊 Frozen',
-    caffeinated: '⚡ Caffeinated',
-    brainrot: '🧠 Brainrot',
+    bleed: '🩸 Bleeding', confuse: '😵 Confused', freeze: '🧊 Frozen',
+    caffeinated: '⚡ Caffeinated', brainrot: '🧠 Brainrot',
   };
   return `<span class="status-badge status-${char.status.type}">${labels[char.status.type]} (${char.status.duration})</span>`;
 }
@@ -317,9 +433,10 @@ function renderMoveButtons(player: BattleCharacter): string {
       ${player.template.moves.map((move, i) => {
         const onCooldown = player.cooldowns[i] > 0;
         const info = TYPE_INFO[move.type];
+        const isSpecial = move.cooldown >= 3;
         return `
-          <button class="move-btn" data-move="${i}" ${onCooldown ? 'disabled' : ''}>
-            <div class="move-btn-name">${move.name}</div>
+          <button class="move-btn ${isSpecial ? 'move-special' : ''}" data-move="${i}" ${onCooldown ? 'disabled' : ''}>
+            <div class="move-btn-name">${move.name} ${isSpecial ? '⭐' : ''}</div>
             <div class="move-btn-meta">
               <span class="type-badge" style="background:${info.color}22; color:${info.color}">
                 ${info.emoji} ${info.label}
@@ -347,12 +464,12 @@ function renderSwitchPrompt(): string {
 
 function effectLabel(type: string): string {
   const map: Record<string, string> = {
-    bleed: '🩸', confuse: '😵', freeze: '🧊', caffeinated: '⚡', brainrot: '🧠',
+    bleed: '🩸', confuse: '😵', freeze: '🧊', caffeinated: '⚡', brainrot: '����',
   };
   return map[type] || '';
 }
 
-// ── Battle Execution ────────────────────────────────────────
+// ── Battle Execution ───────��────────────────────────────────
 
 async function executeTurn(playerMoveIdx: number) {
   const b = state.battle!;
@@ -377,7 +494,6 @@ async function executeTurn(playerMoveIdx: number) {
     if (await checkFaintAndSwitch(b)) return;
   }
 
-  // End of turn ticks
   await endOfTurnTick(b, player, 'Your');
   await endOfTurnTick(b, cpu, 'Enemy');
 
@@ -400,7 +516,6 @@ async function executeAttack(
   const name = attacker.template.name;
   const move = attacker.template.moves[moveIdx];
 
-  // Check frozen
   if (isFrozen(attacker)) {
     b.log.push(`${prefix}${name} is frozen and can't move! 🧊`);
     attacker.status!.duration -= 1;
@@ -410,21 +525,33 @@ async function executeAttack(
     return;
   }
 
+  // Show catchphrase for special moves (cooldown >= 3)
+  if (move.cooldown >= 3) {
+    showCatchphrase(attacker.template.catchphrase);
+  }
+
   b.log.push(`${prefix}${name} uses ${move.name}!`);
   render();
   await delay(600);
 
   const result = applyMove(attacker, defender, moveIdx);
 
-  // Animate
+  // Floating damage numbers
   const targetId = side === 'player' ? 'fighter-cpu' : 'fighter-player';
-  const targetEl = document.getElementById(targetId);
-  if (targetEl && result.damage > 0) {
-    targetEl.classList.add('animate-shake');
-    setTimeout(() => targetEl?.classList.remove('animate-shake'), 300);
+  if (result.damage > 0) {
+    const color = result.effectiveness > 1.5 ? '#ff4757' : result.effectiveness < 0.8 ? '#aaa' : '#fff';
+    showFloatingText(targetId, `-${result.damage}`, color);
+    const targetEl = document.getElementById(targetId);
+    if (targetEl) {
+      targetEl.classList.add('animate-shake');
+      setTimeout(() => targetEl.classList.remove('animate-shake'), 300);
+    }
+  }
+  if (result.healed > 0) {
+    const selfId = side === 'player' ? 'fighter-player' : 'fighter-cpu';
+    showFloatingText(selfId, `+${result.healed}`, '#2ed573');
   }
 
-  // Log result
   logMoveResult(b, result, attacker, defender, side);
 
   render();
@@ -462,11 +589,8 @@ function logMoveResult(
 
   if (result.statusApplied) {
     const labels: Record<string, string> = {
-      bleed: 'is bleeding! 🩸',
-      confuse: 'is confused! 😵',
-      freeze: 'is frozen solid! 🧊',
-      caffeinated: 'got caffeinated! ⚡',
-      brainrot: 'caught brainrot! 🧠',
+      bleed: 'is bleeding! 🩸', confuse: 'is confused! 😵', freeze: 'is frozen solid! 🧊',
+      caffeinated: 'got caffeinated! ⚡', brainrot: 'caught brainrot! 🧠',
     };
     const target = result.statusApplied.type === 'caffeinated' ? attacker : defender;
     const tPrefix = target === attacker ? prefix : (side === 'player' ? 'Enemy ' : '');
@@ -490,11 +614,11 @@ async function endOfTurnTick(b: BattleState, char: BattleCharacter, label: strin
 }
 
 async function checkFaintAndSwitch(b: BattleState): Promise<boolean> {
-  // Check CPU team
   if (!b.cpuTeam[b.cpuActive].isAlive) {
     if (isTeamDefeated(b.cpuTeam)) {
       b.phase = 'game_over';
       b.winner = 'player';
+      handleGameEnd(true);
       state.screen = 'result';
       render();
       return true;
@@ -508,11 +632,11 @@ async function checkFaintAndSwitch(b: BattleState): Promise<boolean> {
     }
   }
 
-  // Check player team
   if (!b.playerTeam[b.playerActive].isAlive) {
     if (isTeamDefeated(b.playerTeam)) {
       b.phase = 'game_over';
       b.winner = 'cpu';
+      handleGameEnd(false);
       state.screen = 'result';
       render();
       return true;
@@ -525,7 +649,40 @@ async function checkFaintAndSwitch(b: BattleState): Promise<boolean> {
   return false;
 }
 
-// ── Result Screen ───────────────────────────────────────────
+// ── Game End Logic ───────��──────────────────────────────────
+
+function handleGameEnd(won: boolean) {
+  const s = state.stats;
+  if (won) {
+    s.wins++;
+    s.winStreak++;
+    if (s.winStreak > s.bestStreak) s.bestStreak = s.winStreak;
+
+    // Unlock characters for beating this arena
+    const unlocks = ARENA_UNLOCK_CHARS[state.arenaLevel] || [];
+    const newUnlocks: string[] = [];
+    for (const id of unlocks) {
+      if (!s.unlockedIds.includes(id)) {
+        s.unlockedIds.push(id);
+        newUnlocks.push(id);
+      }
+    }
+
+    if (state.arenaLevel > s.highestArena) {
+      s.highestArena = state.arenaLevel;
+    }
+
+    // Store new unlocks for result screen
+    (state as any)._newUnlocks = newUnlocks;
+  } else {
+    s.losses++;
+    s.winStreak = 0;
+    (state as any)._newUnlocks = [];
+  }
+  saveStats(s);
+}
+
+// ── Result Screen ───────��───────────────────────────────��───
 
 function renderResult() {
   const won = state.battle?.winner === 'player';
@@ -533,15 +690,36 @@ function renderResult() {
   const lastAlive = won
     ? state.battle!.playerTeam.find(c => c.isAlive)
     : state.battle!.cpuTeam.find(c => c.isAlive);
+  const newUnlocks: string[] = (state as any)._newUnlocks || [];
+  const unlockedChars = newUnlocks.map(id => CHARACTERS.find(c => c.id === id)).filter(Boolean);
 
   app.innerHTML = `
     <div class="result-screen">
       <div class="result-title ${won ? 'victory' : 'defeat'}">
         ${won ? 'VICTORY!' : 'DEFEAT...'}
       </div>
-      <div style="font-size:4rem">${lastAlive?.template.emoji || '💀'}</div>
+      ${lastAlive ? renderPortrait(lastAlive.template, 'lg') : '<div style="font-size:4rem">💀</div>'}
       <p class="result-subtitle">${line}</p>
       ${lastAlive ? `<p class="result-catchphrase">"${lastAlive.template.catchphrase}"</p>` : ''}
+
+      ${state.stats.winStreak > 1 ? `
+        <div class="streak-banner">🔥 ${state.stats.winStreak} WIN STREAK 🔥</div>
+      ` : ''}
+
+      ${unlockedChars.length > 0 ? `
+        <div class="unlock-banner animate-fade-in">
+          <h3 class="pixel-text" style="font-size:0.6rem;color:var(--yellow);margin-bottom:0.5rem">NEW FIGHTERS UNLOCKED!</h3>
+          <div style="display:flex;gap:0.8rem;justify-content:center;flex-wrap:wrap">
+            ${unlockedChars.map(c => c ? `
+              <div class="unlock-card">
+                ${renderPortrait(c, 'sm')}
+                <span style="font-size:0.6rem;color:var(--text-bright);font-family:var(--font-pixel);margin-top:0.3rem;text-align:center">${c.name}</span>
+              </div>
+            ` : '').join('')}
+          </div>
+        </div>
+      ` : ''}
+
       <div class="result-buttons">
         ${won && state.arenaLevel < 5 ? `
           <button class="btn btn-large" id="btn-next">NEXT ARENA</button>
@@ -572,12 +750,6 @@ function renderResult() {
     state.screen = 'battle';
     render();
   });
-}
-
-// ── Utility ─────────────────────────────────────────────────
-
-function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 // ── Boot ────────────────────────────────────────────────────
