@@ -63,7 +63,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       bg: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
       icon: '🪵',
       accent: '#4a90d9',
-      img: '/img/tung-tung.png',
+      img: import.meta.env.BASE_URL + 'img/tung-tung.png',
     },
     hp: 110, atk: 42, def: 30, spd: 35,
     moves: [
@@ -86,7 +86,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       bg: 'linear-gradient(135deg, #2d1b69 0%, #11001c 50%, #45108a 100%)',
       icon: '🪐',
       accent: '#a855f7',
-      img: '/img/vaca-saturno.png',
+      img: import.meta.env.BASE_URL + 'img/vaca-saturno.png',
     },
     hp: 120, atk: 40, def: 35, spd: 20,
     moves: [
@@ -111,7 +111,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       bg: 'linear-gradient(135deg, #4a1a1a 0%, #8b0000 50%, #2d0000 100%)',
       icon: '🐊',
       accent: '#ff4444',
-      img: '/img/bombardiro.png',
+      img: import.meta.env.BASE_URL + 'img/bombardiro.png',
     },
     hp: 100, atk: 38, def: 28, spd: 25,
     moves: [
@@ -134,7 +134,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       bg: 'linear-gradient(135deg, #0a2463 0%, #1e3a8a 50%, #0c4a6e 100%)',
       icon: '🦈',
       accent: '#38bdf8',
-      img: '/img/tralalero.png',
+      img: import.meta.env.BASE_URL + 'img/tralalero.png',
     },
     hp: 85, atk: 35, def: 22, spd: 45,
     moves: [
@@ -157,7 +157,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       bg: 'linear-gradient(135deg, #0b3d0b 0%, #1a5c1a 50%, #0d4f0d 100%)',
       icon: '🌳',
       accent: '#4ade80',
-      img: '/img/brr-patapim.png',
+      img: import.meta.env.BASE_URL + 'img/brr-patapim.png',
     },
     hp: 115, atk: 30, def: 38, spd: 18,
     moves: [
@@ -180,7 +180,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       bg: 'linear-gradient(135deg, #3d1c02 0%, #6b3410 50%, #4a2106 100%)',
       icon: '☕',
       accent: '#fb923c',
-      img: '/img/cappuccino-assassino.png',
+      img: import.meta.env.BASE_URL + 'img/cappuccino-assassino.png',
     },
     hp: 80, atk: 42, def: 20, spd: 40,
     moves: [
@@ -205,7 +205,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       bg: 'linear-gradient(135deg, #4a1942 0%, #7b2d5f 50%, #3d1035 100%)',
       icon: '🩰',
       accent: '#f472b6',
-      img: '/img/ballerina.png',
+      img: import.meta.env.BASE_URL + 'img/ballerina.png',
     },
     hp: 75, atk: 28, def: 25, spd: 38,
     moves: [
@@ -228,7 +228,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       bg: 'linear-gradient(135deg, #4a3800 0%, #7a6000 50%, #5c4a00 100%)',
       icon: '🍌',
       accent: '#facc15',
-      img: '/img/chimpanzini.png',
+      img: import.meta.env.BASE_URL + 'img/chimpanzini.png',
     },
     hp: 70, atk: 40, def: 18, spd: 42,
     moves: [
@@ -251,7 +251,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       bg: 'linear-gradient(135deg, #2d2d2d 0%, #4a4a4a 50%, #1a1a1a 100%)',
       icon: '🦫',
       accent: '#a3a3a3',
-      img: '/img/bobrito.png',
+      img: import.meta.env.BASE_URL + 'img/bobrito.png',
     },
     hp: 90, atk: 36, def: 24, spd: 30,
     moves: [
@@ -274,7 +274,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       bg: 'linear-gradient(135deg, #1a3a4a 0%, #2d5a6a 50%, #0d2f3f 100%)',
       icon: '🦐',
       accent: '#22d3ee',
-      img: '/img/trippi-troppi.png',
+      img: import.meta.env.BASE_URL + 'img/trippi-troppi.png',
     },
     hp: 88, atk: 32, def: 26, spd: 28,
     moves: [
@@ -297,7 +297,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       bg: 'linear-gradient(135deg, #2d4a1a 0%, #4a7a2d 50%, #1a3d0d 100%)',
       icon: '🌵',
       accent: '#a3e635',
-      img: '/img/lirili.png',
+      img: import.meta.env.BASE_URL + 'img/lirili.png',
     },
     hp: 95, atk: 26, def: 30, spd: 22,
     moves: [
@@ -322,7 +322,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       bg: 'linear-gradient(135deg, #1a2a4a 0%, #2a4a6a 50%, #0d1f3f 100%)',
       icon: '🐪',
       accent: '#7dd3fc',
-      img: '/img/frigo-camelo.png',
+      img: import.meta.env.BASE_URL + 'img/frigo-camelo.png',
     },
     hp: 100, atk: 22, def: 32, spd: 15,
     moves: [
@@ -345,7 +345,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       bg: 'linear-gradient(135deg, #1a1a2e 0%, #2d2d4a 50%, #0d0d1f 100%)',
       icon: '🐸',
       accent: '#818cf8',
-      img: '/img/boneca.png',
+      img: import.meta.env.BASE_URL + 'img/boneca.png',
     },
     hp: 85, atk: 30, def: 28, spd: 26,
     moves: [
@@ -368,7 +368,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       bg: 'linear-gradient(135deg, #3d2800 0%, #6b4800 50%, #4a3200 100%)',
       icon: '🦏',
       accent: '#fdba74',
-      img: '/img/rhino-toasterino.png',
+      img: import.meta.env.BASE_URL + 'img/rhino-toasterino.png',
     },
     hp: 92, atk: 28, def: 30, spd: 20,
     moves: [
@@ -391,7 +391,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       bg: 'linear-gradient(135deg, #1a3a1a 0%, #2d5a3d 50%, #0d3f2d 100%)',
       icon: '🐬',
       accent: '#34d399',
-      img: '/img/bananita.png',
+      img: import.meta.env.BASE_URL + 'img/bananita.png',
     },
     hp: 72, atk: 30, def: 18, spd: 40,
     moves: [
@@ -414,7 +414,7 @@ export const CHARACTERS: CharacterTemplate[] = [
       bg: 'linear-gradient(135deg, #3d3d00 0%, #6b6b00 50%, #4a4a00 100%)',
       icon: '🍍',
       accent: '#fbbf24',
-      img: '/img/orangutini.png',
+      img: import.meta.env.BASE_URL + 'img/orangutini.png',
     },
     hp: 95, atk: 34, def: 26, spd: 22,
     moves: [

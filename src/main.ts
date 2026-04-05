@@ -521,7 +521,7 @@ async function executeAttack(
     attacker.status!.duration -= 1;
     if (attacker.status!.duration <= 0) attacker.status = null;
     render();
-    await delay(800);
+    await delay(1000);
     return;
   }
 
@@ -532,7 +532,7 @@ async function executeAttack(
 
   b.log.push(`${prefix}${name} uses ${move.name}!`);
   render();
-  await delay(600);
+  await delay(900);
 
   const result = applyMove(attacker, defender, moveIdx);
 
@@ -555,7 +555,7 @@ async function executeAttack(
   logMoveResult(b, result, attacker, defender, side);
 
   render();
-  await delay(600);
+  await delay(1000);
 }
 
 function logMoveResult(
@@ -609,7 +609,7 @@ async function endOfTurnTick(b: BattleState, char: BattleCharacter, label: strin
   if (bleedDamage > 0) {
     b.log.push(`${label} ${char.template.name} takes ${bleedDamage} bleed damage! 🩸`);
     render();
-    await delay(400);
+    await delay(700);
   }
 }
 
@@ -628,7 +628,7 @@ async function checkFaintAndSwitch(b: BattleState): Promise<boolean> {
       b.cpuActive = next;
       b.log.push(`CPU sends out ${b.cpuTeam[next].template.name}!`);
       render();
-      await delay(600);
+      await delay(900);
     }
   }
 
