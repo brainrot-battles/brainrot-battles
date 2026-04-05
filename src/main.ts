@@ -118,12 +118,12 @@ const app = document.getElementById('app')!;
 
 // ── Analytics ──────────────────────────────────────────────
 
-declare function goatcounter_count(vars: { path: string; title?: string; event?: boolean }): void;
+declare const umami: { track: (name: string, data?: Record<string, string | number>) => void } | undefined;
 
-function trackEvent(name: string) {
+function trackEvent(name: string, data?: Record<string, string | number>) {
   try {
-    if (typeof goatcounter_count === 'function') {
-      goatcounter_count({ path: `event/${name}`, title: name, event: true });
+    if (typeof umami !== 'undefined') {
+      umami.track(name, data);
     }
   } catch { /* analytics should never break the game */ }
 }
@@ -193,6 +193,7 @@ function setupLangToggle() {
     btn.addEventListener('click', () => {
       const lang = (btn as HTMLElement).dataset.lang as 'en' | 'de';
       setLang(lang);
+      trackEvent('lang-switch', { lang });
       render();
     });
   });
@@ -283,6 +284,7 @@ function showAccountModal() {
     overlay.querySelector('#btn-google')?.addEventListener('click', async () => {
       try {
         await loginWithGoogle();
+        trackEvent('login', { method: 'google' });
         await handlePostLogin(overlay);
       } catch (e: any) {
         showError(e.message || 'Google login failed');
@@ -294,6 +296,7 @@ function showAccountModal() {
       const pw = (overlay.querySelector('#account-password') as HTMLInputElement).value;
       try {
         await loginWithEmail(email, pw);
+        trackEvent('login', { method: 'email' });
         await handlePostLogin(overlay);
       } catch (e: any) {
         showError(e.message || 'Login failed');
@@ -305,6 +308,7 @@ function showAccountModal() {
       const pw = (overlay.querySelector('#account-password') as HTMLInputElement).value;
       try {
         await registerWithEmail(email, pw);
+        trackEvent('login', { method: 'register' });
         await handlePostLogin(overlay);
       } catch (e: any) {
         showError(e.message || 'Registration failed');
@@ -633,7 +637,13 @@ function renderSelect() {
       state.battle = initBattle(state.playerTeam, state.cpuTeam, playerLevels, cpuLevels, playerItemArray, cpuItemArray);
       state.battle.log = [t('battle.start')];
       state.screen = 'battle';
-      trackEvent(`arena-start-lv${state.arenaLevel}`);
+      trackEvent('battle-start', {
+        mode: 'arena',
+        level: state.arenaLevel,
+        team: state.playerTeam.map(c => c.name).join(', '),
+        lang: getLang(),
+        loggedIn: isLoggedIn() ? 'yes' : 'no',
+      });
       render();
     }
   });
@@ -748,7 +758,13 @@ function renderEndlessSelect() {
       state.battle = initBattle(state.playerTeam, state.cpuTeam, playerLevels, cpuLevels, playerItemArray, cpuItemArray);
       state.battle.log = [t('battle.start')];
       state.screen = 'battle';
-      trackEvent(`endless-start-f${nextFloor}`);
+      trackEvent('battle-start', {
+        mode: 'endless',
+        floor: nextFloor,
+        team: state.playerTeam.map(c => c.name).join(', '),
+        lang: getLang(),
+        loggedIn: isLoggedIn() ? 'yes' : 'no',
+      });
       render();
     }
   });
@@ -1227,9 +1243,19 @@ function handleGameEnd(won: boolean) {
   const s = state.stats;
 
   if (state.mode === 'arena') {
-    trackEvent(`arena-${won ? 'win' : 'loss'}-lv${state.arenaLevel}`);
+    trackEvent('battle-end', {
+      mode: 'arena',
+      result: won ? 'win' : 'loss',
+      level: state.arenaLevel,
+      team: state.playerTeam.map(c => c.name).join(', '),
+    });
   } else {
-    trackEvent(`endless-${won ? 'win' : 'loss'}-f${s.endless.floor + 1}`);
+    trackEvent('battle-end', {
+      mode: 'endless',
+      result: won ? 'win' : 'loss',
+      floor: s.endless.floor + 1,
+      team: state.playerTeam.map(c => c.name).join(', '),
+    });
   }
 
   // Award XP to all player team characters
