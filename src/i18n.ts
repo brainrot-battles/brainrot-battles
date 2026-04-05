@@ -109,6 +109,26 @@ const strings: Record<Lang, Record<string, string>> = {
     'help.title': 'HOW TO PLAY',
     'help.close': 'CLOSE',
     'help.button': 'HELP',
+
+    // Account
+    'account.button': 'ACCOUNT',
+    'account.title': 'ACCOUNT',
+    'account.logged_in_as': 'Logged in as',
+    'account.logout': 'LOGOUT',
+    'account.login_google': 'SIGN IN WITH GOOGLE',
+    'account.login_email': 'SIGN IN WITH E-MAIL',
+    'account.register_email': 'CREATE ACCOUNT',
+    'account.email_placeholder': 'E-Mail',
+    'account.password_placeholder': 'Password (min. 6 chars)',
+    'account.or': 'or',
+    'account.close': 'CLOSE',
+    'account.synced': 'Cloud save synced',
+    'account.uploaded': 'Progress uploaded to cloud',
+    'account.loaded': 'Cloud save loaded',
+    'account.error': 'Error: {msg}',
+    'account.cloud_exists': 'Cloud save found! Load cloud save or keep local progress?',
+    'account.btn_cloud': 'LOAD CLOUD',
+    'account.btn_local': 'KEEP LOCAL',
   },
 
   de: {
@@ -209,6 +229,26 @@ const strings: Record<Lang, Record<string, string>> = {
     'help.title': 'SPIELANLEITUNG',
     'help.close': 'SCHLIESSEN',
     'help.button': 'HILFE',
+
+    // Account
+    'account.button': 'KONTO',
+    'account.title': 'KONTO',
+    'account.logged_in_as': 'Eingeloggt als',
+    'account.logout': 'ABMELDEN',
+    'account.login_google': 'MIT GOOGLE ANMELDEN',
+    'account.login_email': 'MIT E-MAIL ANMELDEN',
+    'account.register_email': 'KONTO ERSTELLEN',
+    'account.email_placeholder': 'E-Mail',
+    'account.password_placeholder': 'Passwort (min. 6 Zeichen)',
+    'account.or': 'oder',
+    'account.close': 'SCHLIESSEN',
+    'account.synced': 'Cloud-Spielstand synchronisiert',
+    'account.uploaded': 'Fortschritt in die Cloud hochgeladen',
+    'account.loaded': 'Cloud-Spielstand geladen',
+    'account.error': 'Fehler: {msg}',
+    'account.cloud_exists': 'Cloud-Spielstand gefunden! Cloud laden oder lokalen Fortschritt behalten?',
+    'account.btn_cloud': 'CLOUD LADEN',
+    'account.btn_local': 'LOKAL BEHALTEN',
   },
 };
 

@@ -1368,3 +1368,103 @@ body::after {
 .help-type-table tr:hover td {
   background: var(--bg-card);
 }
+
+/* ── Account Modal ──────────────────────────────── */
+
+.account-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+.account-modal {
+  background: var(--bg-card);
+  border: 2px solid var(--accent-glow);
+  border-radius: 12px;
+  padding: 1.5rem;
+  max-width: 380px;
+  width: 90%;
+  text-align: center;
+}
+
+.account-modal h2 {
+  font-family: var(--font-pixel);
+  font-size: 0.75rem;
+  color: var(--accent-glow);
+  margin-bottom: 1rem;
+}
+
+.account-modal p {
+  font-size: 0.75rem;
+  color: var(--text);
+  margin-bottom: 1rem;
+  line-height: 1.4;
+}
+
+.account-input {
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  margin-bottom: 0.5rem;
+  background: var(--bg-main);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-bright);
+  font-size: 0.8rem;
+  box-sizing: border-box;
+}
+
+.account-input:focus {
+  outline: none;
+  border-color: var(--accent-glow);
+}
+
+.account-input::placeholder {
+  color: var(--text-dim);
+}
+
+.account-error {
+  color: var(--red, #ff4444);
+  font-size: 0.7rem;
+  margin-bottom: 0.5rem;
+  min-height: 1em;
+}
+
+.account-modal .btn {
+  width: 100%;
+  margin-bottom: 0.4rem;
+}
+
+.account-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.8rem 0;
+  color: var(--text-dim);
+  font-size: 0.65rem;
+}
+
+.account-divider::before,
+.account-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.account-status {
+  font-family: var(--font-pixel);
+  font-size: 0.6rem;
+  color: var(--green, #44ff44);
+  margin-bottom: 0.3rem;
+}
+
+.account-status-detail {
+  font-size: 0.7rem;
+  color: var(--text);
+  margin-bottom: 1rem;
+}

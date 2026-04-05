@@ -24,6 +24,10 @@ import {
 } from './engine';
 import type { MoveResult } from './engine';
 import { t, tDesc, getLang, setLang, randomVictoryLine, randomDefeatLine, randomIntroLine, getHelpHTML } from './i18n';
+import {
+  loginWithGoogle, loginWithEmail, registerWithEmail, logout,
+  loadCloudSave, saveToCloud, isLoggedIn, getUserDisplayName, waitForAuth,
+} from './firebase';
 
 // ── Persistence ─────────────────────────────────────────────
 
@@ -53,6 +57,10 @@ function loadStats(): PlayerStats {
 
 function saveStats(stats: PlayerStats) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(stats));
+  // Sync to cloud if logged in (fire-and-forget)
+  if (isLoggedIn()) {
+    saveToCloud(stats).catch(() => {});
+  }
 }
 
 // ── Character Progress Helpers ──────────────────────────────
@@ -213,6 +221,142 @@ function showHelpOverlay() {
   });
 }
 
+// ── Account Modal ──────────────────────────────────────────
+
+function showAccountModal() {
+  const existing = document.querySelector('.account-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'account-overlay';
+
+  if (isLoggedIn()) {
+    // Logged-in view: show status + logout
+    overlay.innerHTML = `
+      <div class="account-modal">
+        <h3 style="font-family:var(--font-pixel);font-size:0.7rem;color:var(--accent-glow);margin-bottom:0.8rem">${t('account.title')}</h3>
+        <div class="account-status-detail">
+          <p>☁️ ${t('account.logged_in_as')}</p>
+          <p style="color:var(--text-bright);font-size:0.9rem;margin:0.3rem 0"><strong>${getUserDisplayName()}</strong></p>
+          <p style="color:var(--green);font-size:0.7rem">${t('account.synced')}</p>
+        </div>
+        <div style="display:flex;gap:0.5rem;margin-top:0.8rem;justify-content:center">
+          <button class="btn btn-small" id="btn-logout" style="border-color:var(--red);color:var(--red)">${t('account.logout')}</button>
+          <button class="btn btn-small" id="btn-close-account">${t('account.close')}</button>
+        </div>
+      </div>
+    `;
+    overlay.querySelector('#btn-logout')?.addEventListener('click', async () => {
+      await logout();
+      overlay.remove();
+      render();
+    });
+  } else {
+    // Login view
+    overlay.innerHTML = `
+      <div class="account-modal">
+        <h3 style="font-family:var(--font-pixel);font-size:0.7rem;color:var(--accent-glow);margin-bottom:0.8rem">${t('account.title')}</h3>
+        <p style="font-size:0.7rem;color:var(--text-dim);margin-bottom:0.8rem;line-height:1.4">
+          ${getLang() === 'de' ? 'Melde dich an um deinen Spielstand in der Cloud zu sichern und auf anderen Geräten weiterzuspielen.' : 'Sign in to save your progress to the cloud and continue on other devices.'}
+        </p>
+        <button class="btn btn-small account-google-btn" id="btn-google" style="border-color:var(--yellow);color:var(--yellow);width:100%;margin-bottom:0.5rem">
+          🔑 ${t('account.login_google')}
+        </button>
+        <div style="text-align:center;color:var(--text-dim);font-size:0.65rem;margin:0.4rem 0">— ${t('account.or')} —</div>
+        <input type="email" id="account-email" placeholder="${t('account.email_placeholder')}" class="account-input" />
+        <input type="password" id="account-password" placeholder="${t('account.password_placeholder')}" class="account-input" />
+        <div class="account-error" id="account-error" style="display:none"></div>
+        <div style="display:flex;gap:0.4rem;margin-top:0.5rem">
+          <button class="btn btn-small" id="btn-email-login" style="flex:1">${t('account.login_email')}</button>
+          <button class="btn btn-small" id="btn-email-register" style="flex:1;border-color:var(--green);color:var(--green)">${t('account.register_email')}</button>
+        </div>
+        <button class="btn btn-small" id="btn-close-account" style="margin-top:0.5rem;opacity:0.5">${t('account.close')}</button>
+      </div>
+    `;
+
+    const showError = (msg: string) => {
+      const el = overlay.querySelector('#account-error') as HTMLElement;
+      el.textContent = t('account.error', { msg });
+      el.style.display = 'block';
+    };
+
+    overlay.querySelector('#btn-google')?.addEventListener('click', async () => {
+      try {
+        await loginWithGoogle();
+        await handlePostLogin(overlay);
+      } catch (e: any) {
+        showError(e.message || 'Google login failed');
+      }
+    });
+
+    overlay.querySelector('#btn-email-login')?.addEventListener('click', async () => {
+      const email = (overlay.querySelector('#account-email') as HTMLInputElement).value;
+      const pw = (overlay.querySelector('#account-password') as HTMLInputElement).value;
+      try {
+        await loginWithEmail(email, pw);
+        await handlePostLogin(overlay);
+      } catch (e: any) {
+        showError(e.message || 'Login failed');
+      }
+    });
+
+    overlay.querySelector('#btn-email-register')?.addEventListener('click', async () => {
+      const email = (overlay.querySelector('#account-email') as HTMLInputElement).value;
+      const pw = (overlay.querySelector('#account-password') as HTMLInputElement).value;
+      try {
+        await registerWithEmail(email, pw);
+        await handlePostLogin(overlay);
+      } catch (e: any) {
+        showError(e.message || 'Registration failed');
+      }
+    });
+  }
+
+  app.appendChild(overlay);
+
+  overlay.querySelector('#btn-close-account')?.addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
+}
+
+async function handlePostLogin(overlay: HTMLElement) {
+  // Check if cloud save exists
+  const cloudSave = await loadCloudSave();
+
+  if (cloudSave) {
+    // Cloud save exists — ask user what to do
+    overlay.innerHTML = `
+      <div class="account-modal">
+        <h3 style="font-family:var(--font-pixel);font-size:0.7rem;color:var(--accent-glow);margin-bottom:0.8rem">${t('account.title')}</h3>
+        <p style="font-size:0.75rem;color:var(--text);margin-bottom:0.8rem;line-height:1.4">${t('account.cloud_exists')}</p>
+        <div style="display:flex;gap:0.5rem;justify-content:center">
+          <button class="btn btn-small" id="btn-use-cloud" style="border-color:var(--green);color:var(--green)">${t('account.btn_cloud')}</button>
+          <button class="btn btn-small" id="btn-use-local" style="border-color:var(--yellow);color:var(--yellow)">${t('account.btn_local')}</button>
+        </div>
+      </div>
+    `;
+    overlay.querySelector('#btn-use-cloud')?.addEventListener('click', () => {
+      // Load cloud save into local state
+      state.stats = cloudSave;
+      saveStats(state.stats);
+      overlay.remove();
+      render();
+    });
+    overlay.querySelector('#btn-use-local')?.addEventListener('click', async () => {
+      // Upload local save to cloud
+      await saveToCloud(state.stats);
+      overlay.remove();
+      render();
+    });
+  } else {
+    // No cloud save — upload local save
+    await saveToCloud(state.stats);
+    overlay.remove();
+    render();
+  }
+}
+
 // ── Floating Damage Number ──────────────────────────────────
 
 function showFloatingText(targetId: string, text: string, color: string) {
@@ -286,7 +430,13 @@ function renderTitle() {
           </p>
         ` : ''}
       </div>
+      ${isLoggedIn() ? `
+        <div class="account-status">
+          <span>☁️ ${t('account.logged_in_as')} <strong>${getUserDisplayName()}</strong></span>
+        </div>
+      ` : ''}
       <div style="display:flex;gap:0.5rem;justify-content:center;flex-wrap:wrap">
+        <button class="btn btn-small" id="btn-account" style="border-color:var(--green);color:var(--green)">${isLoggedIn() ? '☁️' : '👤'} ${t('account.button')}</button>
         ${s.wins > 0 ? `<button class="btn btn-small" id="btn-reset" style="opacity:0.5">${t('title.reset')}</button>` : ''}
         <button class="btn btn-small" id="btn-help" style="opacity:0.5">${t('help.button')}</button>
       </div>
@@ -318,6 +468,10 @@ function renderTitle() {
 
   document.getElementById('btn-help')?.addEventListener('click', () => {
     showHelpOverlay();
+  });
+
+  document.getElementById('btn-account')?.addEventListener('click', () => {
+    showAccountModal();
   });
 
   setupLangToggle();
