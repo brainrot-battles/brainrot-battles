@@ -1714,4 +1714,9 @@ function renderResult() {
 
 // ── Boot ────────────────────────────────────────────────────
 
+// Render immediately, then re-render once Firebase Auth is ready
 render();
+waitForAuth().then(() => {
+  loadProfile().catch(() => {});
+  render();
+});
